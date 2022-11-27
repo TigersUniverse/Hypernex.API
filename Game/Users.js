@@ -3,7 +3,6 @@ const date = require("date-and-time")
 
 const Posts = require("../Social/Posts.js")
 const ID = require("../Data/ID.js")
-const Database = require("../Data/Database.js")
 const Logger = require("../Logging/Logger.js")
 const GenericToken = require("../Security/GenericToken.js")
 const OTP = require("../Security/OTP.js")
@@ -11,13 +10,16 @@ const Emailing = require("../Data/Emailing.js")
 const DateTools = require("../Tools/DateTools.js")
 const ArrayTools = require("../Tools/ArrayTools.js")
 
+let Database
+
 const USERDATA_DATABASE_PREFIX = "user/"
 const MAX_BIO_LENGTH = 250
 
 let serverConfig
 
-exports.init = function (ServerConfig){
+exports.init = function (ServerConfig, databaseModule){
     serverConfig = ServerConfig
+    Database = databaseModule
     Logger.Log("Initialized Users!")
     return this
 }
@@ -91,14 +93,14 @@ exports.censorUser = function (userdata){
         d.Following = userdata.Following
         d.Followers = userdata.Followers
     }
+    return d
 }
 
-function getPrivateUserData (userdata){
+exports.getPrivateUserData = function (userdata){
     // In scenarios where we store private user data that only the Server should see, this is what we return
     userdata.HashedPassword = null
     userdata.emailVerificationKey = null
     userdata.passwordResetKey = null
-    userdata.AccountTokens = null
     userdata.TwoFA = null
     return userdata
 }
@@ -286,7 +288,7 @@ exports.getPrivateClientUserData = function (username, tokenContent) {
             if(tokenValid){
                 exports.getUserDataFromUsername(username).then(userdata => {
                     if(userdata){
-                        let pcud = getPrivateUserData(userdata)
+                        let pcud = exports.getPrivateUserData(userdata)
                         exec(pcud)
                     }
                     else
@@ -327,7 +329,7 @@ exports.getUserDataFromUsername = function (username) {
             // Make sure out object is a user
             if(key.split('/')[0] !== "user")
                 return
-            if(value.Username === username)
+            if(value.Username.toLowerCase() === username.toLowerCase())
                 exec(value)
         }).then(() => {
             throw new Error("There is no registered user with the username " + username)
@@ -587,6 +589,8 @@ exports.verifyEmailToken = function (userid, tokenContent) {
     })
 }
 
+// TODO: Change email
+
 // Returns the otpauth_url for the client to verify
 exports.enable2fa = function (username, tokenContent) {
     return new Promise(exec => {
@@ -780,7 +784,7 @@ exports.blockUser = function (username, tokenContent, targetUserId) {
                         exports.getUserDataFromUserId(targetUserId).then(targetUserData => {
                             if(targetUserData){
                                 let nud = userdata
-                                nud.BlockedUsers[nud.BlockedUsers.length] = targetUserData.Id
+                                nud.BlockedUsers.push(targetUserData.Id)
                                 setUserData(nud).then(r => {
                                     if(r)
                                         exec(true)
@@ -846,9 +850,9 @@ exports.followUser = function (fromUsername, tokenContent, targetUserId) {
                         exports.getUserDataFromUserId(targetUserId).then(targetUserData => {
                             if(targetUserData){
                                 let nfud = fromUserData
-                                nfud.Following[nfud.Following.length] = targetUserData.Id
+                                nfud.Following.push(targetUserData.Id)
                                 let ntud = targetUserData
-                                ntud.Followers[ntud.Followers.length] = fromUserData.Id
+                                ntud.Followers.push(fromUserData.Id)
                                 setUserData(nfud)
                                 setUserData(ntud)
                                 exec(true)
@@ -908,9 +912,9 @@ exports.sendFriendRequest = function (fromUsername, tokenContent, targetUserId) 
                         exports.getUserDataFromUserId(targetUserId).then(targetUserData => {
                             if(targetUserData){
                                 let nfud = fromUserData
-                                nfud.OutgoingFriendRequests[nfud.OutgoingFriendRequests.length] = targetUserData.Id
+                                nfud.OutgoingFriendRequests.push(targetUserData.Id)
                                 let ntud = targetUserData
-                                ntud.FriendRequests[ntud.FriendRequests.length] = fromUserData.Id
+                                ntud.FriendRequests.push(fromUserData.Id)
                                 setUserData(nfud)
                                 setUserData(ntud)
                             }

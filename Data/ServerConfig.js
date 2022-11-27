@@ -19,6 +19,7 @@ exports.LoadedConfig = {
         TLSKeyLocation: "",
         TLSCertificateLocation: ""
     },
+    WebRoot: "html/",
     MailGun: {
         Username: "",
         Key: "",

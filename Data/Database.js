@@ -33,6 +33,7 @@ exports.connect = function (host, port, password, tls) {
         options.tls = tls
     client = redis.createClient(options)
     Logger.Log("Opened redis client on " + host + ":" + port)
+    return this
 }
 
 exports.get = function (key){
