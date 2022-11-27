@@ -5,7 +5,8 @@ const ServerConfig = require("Data/ServerConfig.js")
 const Database = require("Data/Database.js")
 const APIServer = require("API/Server.js")
 const Users = require("Game/Users.js")
-const Posts = require("Social/Posts.js")
+const Posts = require("Social/Social.js")
+const OTP = require("Security/OTP.js")
 
 // Config
 if(!ServerConfig.DoesConfigExist())
@@ -34,12 +35,11 @@ let d = Database.connect(ServerConfig.LoadedConfig.DatabaseInfo.Host, ServerConf
     databasePassword, databaseTLS)
 
 // Init Modules
-let u = Users.init(ServerConfig, d)
+let otp = OTP.init(ServerConfig)
+let u = Users.init(ServerConfig, d, otp)
 Posts.init(u, d)
 // API comes last
 APIServer.initapp(u, ServerConfig)
-
-exports.UsedHTTPS = false
 
 let httpServer = APIServer.createServer(80)
 let httpsServer
@@ -48,5 +48,4 @@ if(ServerConfig.LoadedConfig.UseHTTPS){
         key: fs.readFileSync(ServerConfig.LoadedConfig.HTTPSTLS.TLSKeyLocation),
         cert: fs.readFileSync(ServerConfig.LoadedConfig.HTTPSTLS.TLSCertificateLocation)
     })
-    exports.UsedHTTPS = true
 }

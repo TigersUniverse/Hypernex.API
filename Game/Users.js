@@ -1,25 +1,27 @@
 const bcrypt = require("bcrypt")
 const date = require("date-and-time")
 
-const Posts = require("../Social/Posts.js")
+const Social = require("../Social/Social.js")
 const ID = require("../Data/ID.js")
 const Logger = require("../Logging/Logger.js")
 const GenericToken = require("../Security/GenericToken.js")
-const OTP = require("../Security/OTP.js")
 const Emailing = require("../Data/Emailing.js")
 const DateTools = require("../Tools/DateTools.js")
 const ArrayTools = require("../Tools/ArrayTools.js")
+const PronounTools = require("../Tools/PronounTools.js")
 
 let Database
+let OTP
 
 const USERDATA_DATABASE_PREFIX = "user/"
 const MAX_BIO_LENGTH = 250
 
 let serverConfig
 
-exports.init = function (ServerConfig, databaseModule){
+exports.init = function (ServerConfig, databaseModule, otpModule){
     serverConfig = ServerConfig
     Database = databaseModule
+    OTP = otpModule
     Logger.Log("Initialized Users!")
     return this
 }
@@ -53,7 +55,8 @@ function createUserData(id, username, hashedPassword, email){
             Description: "",
             PfpURL: "",
             BannerURL: "",
-            DisplayName: ""
+            DisplayName: "",
+            Pronouns: null
         },
         Rank: exports.Rank.Incompleter,
         AccountCreationDate: DateTools.getUnixTime(new Date()),
@@ -184,9 +187,9 @@ exports.createUser = function (username, password, email, inviteCode) {
                                         Database.set(USERDATA_DATABASE_PREFIX + id, userdata).then(reply => {
                                             if(!reply)
                                                 throw new Error("Failed to save user " + username + " to database!")
-                                            Posts.initUser(userdata).then(r => {
+                                            Social.initUser(userdata).then(r => {
                                                 if(!r)
-                                                    throw new Error("Failed to create user posts for unknown reason")
+                                                    throw new Error("Failed to create socialdata for unknown reason")
                                                 exec(userdata)
                                             }).catch(err => {
                                                 Logger.Error("Failed to create user " + username + " for reason " + err)
@@ -573,6 +576,8 @@ exports.verifyEmailToken = function (userid, tokenContent) {
                     let nud = userdata
                     nud.isEmailVerified = true
                     nud.emailVerificationToken = ""
+                    if(userdata.Rank === exports.Rank.Incompleter)
+                        nud.Rank = exports.Rank.Registered
                     setUserData(nud).then(r => {
                         if(r)
                             exec(true)
@@ -589,7 +594,44 @@ exports.verifyEmailToken = function (userid, tokenContent) {
     })
 }
 
-// TODO: Change email
+exports.changeEmail = function (username, tokenContent, newEmail) {
+    return new Promise(exec => {
+        exports.isUserTokenValid(username, tokenContent).then(validToken => {
+            if(validToken){
+                exports.getUserDataFromUsername(username).then(userdata => {
+                    if(userdata){
+                        if(Emailing.isValidEmail(newEmail)){
+                            exports.getUserDataFromEmail(newEmail).then(r => {
+                                if(r)
+                                    throw new Error("Email already used!")
+                                else{
+                                    let nud = userdata
+                                    nud.isEmailVerified = false
+                                    nud.emailVerificationToken = ""
+                                    nud.Email = newEmail
+                                    if(nud.Rank < exports.Rank.Verified)
+                                        nud.Rank = exports.Rank.Incompleter
+                                    setUserData(nud).then(rr => {
+                                        if(rr)
+                                            exec(true)
+                                        else
+                                            exec(false)
+                                    }).catch(err => exec(false))
+                                }
+                            })
+                        }
+                        else
+                            throw new Error("Invalid Email")
+                    }
+                    else
+                        throw new Error("Failed to get user from username")
+                }).catch(uerr => throw uerr)
+            }
+            else
+                throw new Error("Invalid Token")
+        }).catch(terr => throw terr)
+    })
+}
 
 // Returns the otpauth_url for the client to verify
 exports.enable2fa = function (username, tokenContent) {
@@ -719,7 +761,8 @@ function isValidBio(bio){
         if(bio.isPrivateAccount === true || bio.isPrivateAccount === false)
             pav = true
         let statusValid = false
-        if(bio.Status >= 0 && bio.Status <= 6)
+        // User can set Invisible, but not Offline
+        if(bio.Status >= 1 && bio.Status <= 6)
             statusValid = true
         let descriptionValid = false
         if(typeof bio.Description === 'string' || bio.Description instanceof String)
@@ -734,7 +777,20 @@ function isValidBio(bio){
         if(typeof bio.DisplayName === 'string' || bio.DisplayName instanceof String)
             if(bio.DisplayName.length <= MAX_BIO_LENGTH)
                 displayNameValid = true
-        return pav && statusValid && descriptionValid && pfpURLValid && bannerURLValid && displayNameValid
+        let proav = true
+        if(bio.Pronouns !== null){
+            if(!PronounTools.isValidPronounId(bio.Pronouns.nominativeId))
+                proav = false
+            if(!PronounTools.isValidPronounId(bio.Pronouns.accusativeId))
+                proav = false
+            if(!PronounTools.isValidPronounId(bio.Pronouns.reflexiveId))
+                proav = false
+            if(!PronounTools.isValidPronounId(bio.Pronouns.independentId))
+                proav = false
+            if(!PronounTools.isValidPronounId(bio.Pronouns.dependentId))
+                proav = false
+        }
+        return pav && statusValid && descriptionValid && pfpURLValid && bannerURLValid && displayNameValid && proav
     }
     catch (e) {
         return false
@@ -757,6 +813,12 @@ exports.updateBio = function (username, tokenContent, bio){
                             PfpURL: bio.PfpURL,
                             BannerURL: bio.BannerURL,
                             DisplayName: bio.DisplayName
+                        }
+                        if(bio.Pronouns){
+                            let pronouns = PronounTools.createPronouns(bio.Pronouns.nominativeId,
+                                bio.Pronouns.accusativeId, bio.Pronouns.reflexiveId, bio.Pronouns.independentId,
+                                bio.Pronouns.dependentId)
+                            nud.Bio.Pronouns = pronouns
                         }
                         setUserData(nud).then(r => {
                             if(r)

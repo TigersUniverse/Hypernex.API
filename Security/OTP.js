@@ -1,9 +1,19 @@
 const speakeasy = require("speakeasy")
 
+const Logger = require("../Logging/Logger.js")
+
+let ServerConfig
+
+exports.init = function (serverConfig) {
+    ServerConfig = serverConfig
+    Logger.Log("Initialized OTP!")
+    return this
+}
+
 exports.create2faOTP = function (userdata){
     return speakeasy.generateSecret({
         length: 25,
-        name: "Hypernex : " + userdata.Username
+        name: ServerConfig.BaseURL + " : " + userdata.Username
     })
 }
 

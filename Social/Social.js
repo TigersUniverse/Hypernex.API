@@ -5,7 +5,7 @@ const ArrayTools = require("../Tools/ArrayTools.js")
 let Users
 let Database
 
-const POSTS_PREFIX = "posts/"
+const SOCIAL_PREFIX = "social/"
 
 exports.init = function (usersModule, databaseModule) {
     Users = usersModule
@@ -30,7 +30,7 @@ exports.initUser = function (userdata) {
             Likes: [],
             Saved: []
         }
-        Database.set(POSTS_PREFIX + userdata.Id, newSocialData).then(r => {
+        Database.set(SOCIAL_PREFIX + userdata.Id, newSocialData).then(r => {
             if(r){
                 Logger.Log("Created Social data for user " + userdata.Username)
                 exec(true)
@@ -46,12 +46,33 @@ exports.initUser = function (userdata) {
 
 exports.getUserSocialData = function (userid) {
     return new Promise(exec => {
-        Database.get(POSTS_PREFIX + userid).then(socialdata => {
+        Database.get(SOCIAL_PREFIX + userid).then(socialdata => {
             if(socialdata)
                 exec(socialdata)
             else
                 exec(null)
         }).catch(() => exec(null))
+    })
+}
+
+function setSocialData(socialdata){
+    return new Promise(exec => {
+        exports.getUserSocialData(socialdata.Id).then(r => {
+            if(r){
+                Database.set(SOCIAL_PREFIX + socialdata.Id, socialdata).then(rr => {
+                    exec(rr)
+                }).catch(uerr => {
+                    Logger.Error("Failed to update socialdata for " + socialdata.Id + " for reason " + uerr)
+                    throw new Error(uerr)
+                })
+            }
+            else{
+                throw new Error("User " + socialdata.Id + " does not exist!")
+            }
+        }).catch(derr => {
+            Logger.Error("Failed to check for user " + socialdata.Id + " for reason " + derr)
+            throw new Error(derr)
+        })
     })
 }
 
@@ -155,24 +176,19 @@ function canUserCommentPost(userid, post){
     })
 }
 
-function postTemplate(userid, postid, content, date, commentPerms, commentDetails){
+function postTemplate(userid, postid, content, commentPerms){
     if(content === null || !(typeof content === 'string' || content instanceof String))
         return null
-    if(Number.isNaN(date))
-        return null
-    else
-        if(date < DateTools.getUnixTime(new Date()))
-            return null
     if(Number.isNaN(commentPerms))
-        return null
+        commentPerms = exports.CommentPermissions.Anyone
     else
         if(!(commentPerms >=0 && commentPerms <= 3))
-            return null
+            commentPerms = exports.CommentPermissions.Anyone
     return {
         FromUserId: userid,
         PostId: postid,
         Content: content,
-        DatePublished: date,
+        DatePublished: DateTools.getUnixTime(new Date()),
         CommentDetails: {
             isComment: false,
             repliedToPostData: null
@@ -196,9 +212,31 @@ function createPostId(posts){
     }
 }
 
-exports.createPost = function (userid, tokenContent, content, date) {
+exports.createPost = function (userid, tokenContent, content, perms) {
     // This is a user post
-
+    return new Promise(exec => {
+        Users.isUserIdTokenValid(userid, tokenContent).then(validToken => {
+            if(validToken){
+                exports.getUserSocialData(userid).then(socialdata => {
+                    if(socialdata){
+                        let nsd = socialdata
+                        let post = postTemplate(userid, content, perms)
+                        nsd.Posts.push(post)
+                        setSocialData(nsd).then(r => {
+                            if(r)
+                                exec(true)
+                            else
+                                exec(false)
+                        }).catch(() => exec(false))
+                    }
+                    else
+                        exec(false)
+                }).catch(() => exec(false))
+            }
+            else
+                exec(false)
+        }).catch(() => exec(false))
+    })
 }
 
 exports.CommentPermissions = {
