@@ -1,76 +1,83 @@
 const redis = require('redis')
-const Logger = require("../Logging/Logger.js");
 
+const Logger = require("./../Logging/Logger.js");
 let client
 
+let isReady = false
+
 function isClientConnected(closeIfConnected){
-    if(client === null)
+    if(client === undefined)
         return false
     else{
-        if(client.isOpen())
+        if(isReady){
             if(closeIfConnected){
                 Logger.Log("Closed redis client")
                 client.disconnect()
-                client = null
+                client = undefined
+                return false
             }
-            else
-                return true
+            return true
+        }
         else
             if(closeIfConnected)
-                client = null
+                client = undefined
             else
                 return false
     }
 }
 
-exports.connect = function (host, port, password, tls) {
-    isClientConnected(true)
-    let options = {
-        host: host,
-        port: port
-    }
-    if(tls !== null)
-        options.tls = tls
+function c(options){
     client = redis.createClient(options)
-    Logger.Log("Opened redis client on " + host + ":" + port)
-    return this
+}
+
+exports.connect = function (database, host, port, username, password, tls) {
+    return new Promise(exec => {
+        isClientConnected(true)
+        let options = {
+            socket:{
+                host: host,
+                port: port
+            },
+            username: username,
+            password: password,
+            database: database
+        }
+        if(tls !== undefined)
+            options.socket.tls = tls
+        c(options)
+        client.on('ready', () => {
+            isReady = true
+            Logger.Log("Opened redis client on " + host + ":" + port)
+            exec(this)
+        })
+        client.on('end', () => isReady = false)
+        client.on('error', () => c(options))
+        client.connect()
+    })
 }
 
 exports.get = function (key){
     return new Promise(exec => {
-        client.get(key, (err, reply) => {
-            if(err) throw err
-            exec(reply)
-        })
+        client.get(key).then(reply => {
+            exec(JSON.parse(reply))
+        }).catch(err => {throw err})
     })
 }
 
 exports.doesKeyExist = function (key) {
     return new Promise(exec => {
-        client.get(key, (err, reply) => {
-            if(err) throw err
-            exec(reply !== null)
-        })
+        exports.get(key).then(reply => {
+            exec(reply !== undefined && reply !== null)
+        }).catch(() => exec(undefined))
     })
 }
 
 exports.set = function(key, value){
     return new Promise(exec => {
-        client.set(key, value, (err, reply) => {
-            if(err) throw err
-            // TODO: What is reply?
+        client.set(key, JSON.stringify(value)).then(reply => {
             exec(reply)
-        })
+        }).catch(err => {throw err})
     })
-}
-
-exports.iterateValues = async function (iterateCallback) {
-    for await (const key in client.scanIterator()){
-        client.get(key, (err, reply) => {
-            if(err) return
-            iterateCallback(key, reply)
-        })
-    }
 }
 
 exports.isClientOpen = function (){

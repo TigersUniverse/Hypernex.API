@@ -4,8 +4,8 @@ const mailgun_api = require("mailgun.js")
 const validator = require("validator")
 const cheerio = require("cheerio")
 
-const Logger = require("../Logging/Logger.js")
-const ID = require("../Data/ID.js")
+const Logger = require("./../Logging/Logger.js")
+const ID = require("./../Data/ID.js")
 
 const mailgun = new mailgun_api(formData)
 let mg

@@ -1,7 +1,7 @@
-const Logger = require("../Logging/Logger.js")
-const ID = require("../Data/ID.js")
-const DateTools = require("../Tools/DateTools.js")
-const ArrayTools = require("../Tools/ArrayTools.js")
+const Logger = require("./../Logging/Logger.js")
+const ID = require("./../Data/ID.js")
+const DateTools = require("./../Tools/DateTools.js")
+const ArrayTools = require("./../Tools/ArrayTools.js")
 let Users
 let Database
 
@@ -50,8 +50,8 @@ exports.getUserSocialData = function (userid) {
             if(socialdata)
                 exec(socialdata)
             else
-                exec(null)
-        }).catch(() => exec(null))
+                exec(undefined)
+        }).catch(() => exec(undefined))
     })
 }
 
@@ -84,11 +84,11 @@ exports.getPost = function (userid, postid) {
                 if(i)
                     exec(socialdata.Posts[i])
                 else
-                    exec(null)
+                    exec(undefined)
             }
             else
-                exec(null)
-        }).catch(() => exec(null))
+                exec(undefined)
+        }).catch(() => exec(undefined))
     })
 }
 
@@ -177,8 +177,8 @@ function canUserCommentPost(userid, post){
 }
 
 function postTemplate(userid, postid, content, commentPerms){
-    if(content === null || !(typeof content === 'string' || content instanceof String))
-        return null
+    if(content === undefined || !(typeof content === 'string' || content instanceof String))
+        return undefined
     if(Number.isNaN(commentPerms))
         commentPerms = exports.CommentPermissions.Anyone
     else
@@ -191,7 +191,7 @@ function postTemplate(userid, postid, content, commentPerms){
         DatePublished: DateTools.getUnixTime(new Date()),
         CommentDetails: {
             isComment: false,
-            repliedToPostData: null
+            repliedToPostData: undefined
         },
         CommentPermissions: commentPerms,
         Comments: [],
@@ -199,8 +199,8 @@ function postTemplate(userid, postid, content, commentPerms){
         Shares: [],
         ShareDetails: {
             isPostShared: false,
-            FromUserId: null,
-            FromPostId: null
+            FromUserId: undefined,
+            FromPostId: undefined
         }
     }
 }

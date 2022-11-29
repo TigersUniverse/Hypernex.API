@@ -13,7 +13,7 @@ exports.init = function (serverConfig) {
 exports.create2faOTP = function (userdata){
     return speakeasy.generateSecret({
         length: 25,
-        name: ServerConfig.BaseURL + " : " + userdata.Username
+        name: ServerConfig.LoadedConfig.BaseURL + " : " + userdata.Username
     })
 }
 

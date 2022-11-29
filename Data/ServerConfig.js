@@ -1,11 +1,13 @@
 const fs = require('fs')
-const Logger = require("../Logging/Logger.js")
+const Logger = require("./../Logging/Logger.js")
 
 exports.LoadedConfig = {
     BaseURL: "",
     DatabaseInfo: {
+        DatabaseNumber: 0,
         Host: "127.0.0.1",
         Port: 6379,
+        Username: "default",
         Password: "",
         UseDatabaseTLS: false,
         DatabaseTLS: {
@@ -37,16 +39,21 @@ exports.LoadedConfig = {
     }
 }
 
+exports.init = function (){
+    return this
+}
+
 exports.LoadConfig = function (configLocation) {
-    if(configLocation === null)
+    if(configLocation === undefined)
         configLocation = "config.json"
     let data = fs.readFileSync(configLocation, 'utf8').toString()
     exports.LoadedConfig = JSON.parse(data)
     Logger.Log("Loaded config from file " + configLocation)
+    return JSON.parse(data)
 }
 
 exports.SaveConfig = function (configLocation) {
-    if(configLocation === null)
+    if(configLocation === undefined)
         configLocation = "config.json"
     let data = JSON.stringify(exports.LoadedConfig)
     fs.writeFileSync(configLocation, data)
@@ -54,7 +61,7 @@ exports.SaveConfig = function (configLocation) {
 }
 
 exports.DoesConfigExist = function (configLocation) {
-    if(configLocation === null)
+    if(configLocation === undefined)
         configLocation = "config.json"
     return fs.existsSync(configLocation)
 }

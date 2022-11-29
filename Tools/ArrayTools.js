@@ -30,7 +30,7 @@ exports.find = function (haystack, needle) {
         if(item === needle)
             return i
     }
-    return null
+    return undefined
 }
 
 exports.customFind = function (haystack, isItem) {
@@ -39,5 +39,5 @@ exports.customFind = function (haystack, isItem) {
         if(isItem(item))
             return i
     }
-    return null
+    return undefined
 }

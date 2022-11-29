@@ -2,10 +2,10 @@ const express = require('express')
 const http = require('http')
 const https = require('https')
 const bodyParser = require("body-parser");
+const path = require("path")
 
-const Logger = require("../Logging/Logger.js")
-const APIMessage = require("APIMessage.js")
-const {LoginResult} = require("../Game/Users");
+const Logger = require("./../Logging/Logger.js")
+const APIMessage = require("./APIMessage.js")
 
 const app = express()
 
@@ -20,11 +20,11 @@ function getAPIEndpoint(){
 
 function isUserBodyValid(property, targetType){
     let v = true
-    if(targetType !== null)
+    if(property === undefined)
+        v = false
+    if(targetType !== undefined)
         if(typeof property !== targetType)
             v = false
-    if(property === null)
-        v = false
     return v
 }
 
@@ -38,7 +38,7 @@ exports.initapp = function (usersModule, serverConfig){
     Users = usersModule
     ServerConfig = serverConfig
 
-    app.use(express.static(serverConfig.WebRoot, {
+    app.use(express.static(path.resolve(serverConfig.LoadedConfig.WebRoot), {
         extensions: ['html', 'htm']
     }))
     app.use(bodyParser.urlencoded({extended: true}))
@@ -166,7 +166,7 @@ exports.initapp = function (usersModule, serverConfig){
     app.post(getAPIEndpoint() + "login", function (req, res) {
         let username = req.body.username
         let password = req.body.password
-        // not important if its null, some people may not have a 2fa code
+        // not important if its undefined, some people may not have a 2fa code
         let twofacode = req.body.twofacode
         if(isUserBodyValid(username, 'string') && isUserBodyValid(password, 'string')){
             Users.Login(username, password, twofacode).then((result, token, status) => {
@@ -216,7 +216,7 @@ exports.initapp = function (usersModule, serverConfig){
 
 exports.createServer = function (port, ssl){
     let server
-    if(ssl === null){
+    if(ssl === undefined){
         server = http.createServer(app)
         server.listen(port)
     }

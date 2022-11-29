@@ -168,17 +168,17 @@ exports.getPronounGroupById = function (id) {
         case 13:
             return exports.Pronouns.PerPerPers
         default:
-            return null
+            return undefined
     }
 }
 
 exports.createPronouns = function (nominativeId, accusativeId, reflexiveId, independentId, dependentId) {
     let pronouns = {
-        NominativeCase: null,
-        AccusativeCase: null,
-        ReflexivePronoun: null,
-        IndependentGenitiveCase: null,
-        DependentGenitiveCase: null,
+        NominativeCase: undefined,
+        AccusativeCase: undefined,
+        ReflexivePronoun: undefined,
+        IndependentGenitiveCase: undefined,
+        DependentGenitiveCase: undefined,
         Action: false,
         DisplayThree: false
     }

@@ -23,7 +23,7 @@ exports.new = function (idtype){
 }
 
 exports.newTokenPassword = function (length){
-    if(length === null)
+    if(length === undefined)
         length = 16
     let charset = "@#$&*0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ@#$&*0123456789abcdefghijklmnopqrstuvwxyz"
     let password = "";

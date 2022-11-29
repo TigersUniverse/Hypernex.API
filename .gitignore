@@ -108,4 +108,6 @@ package-lock.json
 
 # IDEA
 .idea/
+
 .DS_Store
+config.json

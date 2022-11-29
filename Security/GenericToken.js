@@ -1,16 +1,16 @@
 const date = require("date-and-time")
 
-const DateTools = require("../Tools/DateTools.js")
-const ID = require("../Data/ID")
+const DateTools = require("./../Tools/DateTools.js")
+const ID = require("./../Data/ID")
 
 const DAY_HOUR = 24
 
 exports.createToken = function (app, hoursExpire, noExpire) {
     // Default time is 7 days
-    if(hoursExpire === null)
+    if(hoursExpire === undefined)
         hoursExpire = DateTools.getUnixTime(date.addHours(new Date(), DAY_HOUR * 7))
     if(noExpire)
-        hoursExpire = null
+        hoursExpire = undefined
     let tokenId = ID.newTokenPassword(50)
     return {
         content: tokenId,
@@ -21,7 +21,7 @@ exports.createToken = function (app, hoursExpire, noExpire) {
 }
 
 exports.isTokenValid = function (token){
-    if(token.dateExpire === null)
+    if(token.dateExpire === undefined)
         return true;
     return token.dateExpire < new DateTools.getUnixTime(new Date())
 }

@@ -1,20 +1,24 @@
 const bcrypt = require("bcrypt")
 const date = require("date-and-time")
 
-const Social = require("../Social/Social.js")
-const ID = require("../Data/ID.js")
-const Logger = require("../Logging/Logger.js")
-const GenericToken = require("../Security/GenericToken.js")
-const Emailing = require("../Data/Emailing.js")
-const DateTools = require("../Tools/DateTools.js")
-const ArrayTools = require("../Tools/ArrayTools.js")
-const PronounTools = require("../Tools/PronounTools.js")
+const Social = require("./../Social/Social.js")
+const ID = require("./../Data/ID.js")
+const InviteCodes = require("./../Data/InviteCodes.js")
+const Logger = require("./../Logging/Logger.js")
+const GenericToken = require("./../Security/GenericToken.js")
+const Emailing = require("./../Data/Emailing.js")
+const DateTools = require("./../Tools/DateTools.js")
+const ArrayTools = require("./../Tools/ArrayTools.js")
+const PronounTools = require("./../Tools/PronounTools.js")
 
 let Database
 let OTP
 
 const USERDATA_DATABASE_PREFIX = "user/"
 const MAX_BIO_LENGTH = 250
+
+const USERNAME_TO_USERID_PREFIX = "username-userid/"
+const EMAIL_TO_USERID_PREFIX = "email-userid/"
 
 let serverConfig
 
@@ -37,8 +41,7 @@ function createUserData(id, username, hashedPassword, email){
         passwordResetToken: "",
         AccountTokens: [GenericToken.createToken("account-create")],
         is2FAVerified: false,
-        TwoFA: null,
-        InviteCodes: [],
+        TwoFA: undefined,
         BlockedUsers: [],
         Following: [],
         Followers: [],
@@ -56,21 +59,21 @@ function createUserData(id, username, hashedPassword, email){
             PfpURL: "",
             BannerURL: "",
             DisplayName: "",
-            Pronouns: null
+            Pronouns: undefined
         },
         Rank: exports.Rank.Incompleter,
         AccountCreationDate: DateTools.getUnixTime(new Date()),
         BanStatus: {
             isBanned: false,
-            BanBegin: null,
-            BanEnd: null,
+            BanBegin: undefined,
+            BanEnd: undefined,
             BanReason: "",
             BanDescription: ""
         },
         BanCount: 0,
         WarnStatus: {
             isWarned: false,
-            TimeWarned: null,
+            TimeWarned: undefined,
             WarnReason: "",
             WarnDescription: ""
         },
@@ -101,10 +104,10 @@ exports.censorUser = function (userdata){
 
 exports.getPrivateUserData = function (userdata){
     // In scenarios where we store private user data that only the Server should see, this is what we return
-    userdata.HashedPassword = null
-    userdata.emailVerificationKey = null
-    userdata.passwordResetKey = null
-    userdata.TwoFA = null
+    userdata.HashedPassword = undefined
+    userdata.emailVerificationKey = undefined
+    userdata.passwordResetKey = undefined
+    userdata.TwoFA = undefined
     return userdata
 }
 
@@ -122,75 +125,88 @@ function hashPassword(password){
     })
 }
 
-function validateInviteCode(inviteCode){
-    return new Promise(exec => {
-        if(!serverConfig.SignupRules.RequireInviteCode)
-            exec(true, null, null)
-        else{
-            let isGlobalCode = ArrayTools.find(serverConfig.SignupRules.GlobalInviteCodes, inviteCode)
-            if(isGlobalCode)
-                exec(true, null, serverConfig.SignupRules.GlobalInviteCodes[isGlobalCode])
-            else{
-                let f = false
-                Database.iterateValues(function (key, value) {
-                    // Make sure out object is a user
-                    if(key.split('/')[0] !== "user")
-                        return
-                    let inviteCodes = value.InviteCodes
-                    let found = ArrayTools.find(inviteCodes, inviteCode)
-                    if(found){
-                        exec(value, inviteCodes[found])
-                        f = true
-                    }
-                }).then(() => {
-                    if(!f)
-                        exec(false)
-                }).catch(() => exec(false))
-            }
+const ACCEPTABLE_CHARACTERS_IN_USERNAME = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p",
+                                            "q", "r", "s", "t", "u", "v", "w", "x", "y", "x", "A", "B", "C", "D", "E", "F",
+                                            "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V",
+                                            "W", "X", "Y", "Z", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
+
+function isValidUsername(username){
+    if(username.length < 3 || username.length > 20)
+        return false
+    let _s = 0
+    for(let i = 0; i < username.length; i++){
+        let letter = username[i]
+        let ii = ArrayTools.find(ACCEPTABLE_CHARACTERS_IN_USERNAME, letter)
+        if(!ii){
+            if(letter === "_" && _s < 1)
+                _s++
+            else
+                return false
         }
-    })
+    }
+    return true
 }
 
 exports.createUser = function (username, password, email, inviteCode) {
     return new Promise(exec => {
-        exports.isEmailRegistered(email).then(emailRegistered => {
+        exports.isEmailRegistered(email.toLowerCase()).then(emailRegistered => {
             if(!emailRegistered){
                 if(Emailing.isValidEmail(email)){
-                    exports.isUsernameRegistered(username).then(usernameRegistered => {
+                    exports.isUsernameRegistered(username.toLowerCase()).then(usernameRegistered => {
                         if(!usernameRegistered){
-                            validateInviteCode(inviteCode).then((allow, user, code) => {
-                                if(allow){
-                                    // Remove a User inviteCode if needed
-                                    if(user && code){
-                                        if(serverConfig.SignupRules.RemoveCodeAfterUse){
-                                            let nud = user
-                                            let nic = ArrayTools.filterArray(nud.InviteCodes, code)
-                                            nud.InviteCodes = nic
-                                            // TODO: make sure this applies
-                                            setUserData(nud)
+                            if(isValidUsername(username)){
+                                InviteCodes.validateInviteCode(inviteCode, serverConfig.LoadedConfig.SignupRules.RemoveCodeAfterUse).then(allow => {
+                                    if(allow){
+                                        let id
+                                        let alreadyExists = true
+                                        // TODO: Can we make this faster?
+                                        while(alreadyExists){
+                                            id = ID.new(ID.IDTypes.User)
+                                            let exec = false
+                                            Database.doesKeyExist(USERDATA_DATABASE_PREFIX + id).then(exists => {
+                                                alreadyExists = exists
+                                                exec = true
+                                            })
+                                            while(!exec){}
                                         }
-                                    }
-                                    let id
-                                    let alreadyExists = true
-                                    // TODO: Can we make this faster?
-                                    while(alreadyExists){
-                                        id = ID.new(ID.IDTypes.User)
-                                        let exec = false
-                                        Database.doesKeyExist(USERDATA_DATABASE_PREFIX + id).then(exists => {
-                                            alreadyExists = exists
-                                            exec = true
-                                        })
-                                        while(!exec){}
-                                    }
-                                    hashPassword(password).then(hashedPassword => {
-                                        let userdata = createUserData(id, username, hashedPassword, email)
-                                        Database.set(USERDATA_DATABASE_PREFIX + id, userdata).then(reply => {
-                                            if(!reply)
-                                                throw new Error("Failed to save user " + username + " to database!")
-                                            Social.initUser(userdata).then(r => {
-                                                if(!r)
-                                                    throw new Error("Failed to create socialdata for unknown reason")
-                                                exec(userdata)
+                                        hashPassword(password).then(hashedPassword => {
+                                            let userdata = createUserData(id, username, hashedPassword, email)
+                                            Database.set(USERDATA_DATABASE_PREFIX + id, userdata).then(reply => {
+                                                if(!reply)
+                                                    throw new Error("Failed to save user " + username + " to database!")
+                                                else{
+                                                    // Lookup Cache
+                                                    Database.set(USERNAME_TO_USERID_PREFIX + username.toLowerCase(), {
+                                                        Id: id
+                                                    }).then(r => {
+                                                        if(r){
+                                                            Database.set(EMAIL_TO_USERID_PREFIX + email.toLowerCase(), {
+                                                                Id: id
+                                                            }).then(r => {
+                                                                if(r){
+                                                                    Social.initUser(userdata).then(r => {
+                                                                        if(!r)
+                                                                            throw new Error("Failed to create socialdata for unknown reason")
+                                                                        exec(userdata)
+                                                                    }).catch(err => {
+                                                                        Logger.Error("Failed to create user " + username + " for reason " + err)
+                                                                        throw err
+                                                                    })
+                                                                }
+                                                                else
+                                                                    throw new Error("Failed to save Lookup Cache for user " + username)
+                                                            }).catch(err => {
+                                                                Logger.Error("Failed to create user " + username + " for reason " + err)
+                                                                throw err
+                                                            })
+                                                        }
+                                                        else
+                                                            throw new Error("Failed to save Lookup Cache for user " + username)
+                                                    }).catch(err => {
+                                                        Logger.Error("Failed to create user " + username + " for reason " + err)
+                                                        throw err
+                                                    })
+                                                }
                                             }).catch(err => {
                                                 Logger.Error("Failed to create user " + username + " for reason " + err)
                                                 throw err
@@ -199,19 +215,20 @@ exports.createUser = function (username, password, email, inviteCode) {
                                             Logger.Error("Failed to create user " + username + " for reason " + err)
                                             throw err
                                         })
-                                    }).catch(err => {
-                                        Logger.Error("Failed to create user " + username + " for reason " + err)
-                                        throw err
-                                    })
-                                }
-                                else{
-                                    Logger.Error("Cannot create user " + username + " because they provided an invalid inviteCode!")
-                                    throw new Error("Invalid Invite Code")
-                                }
-                            }).catch(err => {
-                                Logger.Error("Unknown error when validating invite code for user " + username + " with error " + err)
-                                throw err
-                            })
+                                    }
+                                    else{
+                                        Logger.Error("Cannot create user " + username + " because they provided an invalid inviteCode!")
+                                        throw new Error("Invalid Invite Code")
+                                    }
+                                }).catch(err => {
+                                    Logger.Error("Unknown error when validating invite code for user " + username + " with error " + err)
+                                    throw err
+                                })
+                            }
+                            else{
+                                Logger.Error("Cannot create user " + username + " because the username " + username + " is invalid!")
+                                throw new Error("Username is invalid")
+                            }
                         }
                         else{
                             Logger.Error("Cannot create user " + username + " because the username " + username + " is already registered!")
@@ -252,7 +269,7 @@ exports.getUserData = function (userid) {
                     if(userdata)
                         exec(exports.censorUser(userdata))
                     else
-                        throw new Error("userdata for userid " + userid + " was null!")
+                        throw new Error("userdata for userid " + userid + " was undefined!")
                 })
             }
             else
@@ -295,13 +312,13 @@ exports.getPrivateClientUserData = function (username, tokenContent) {
                         exec(pcud)
                     }
                     else
-                        exec(null)
+                        exec(undefined)
                 })
             }
             else
-                exec(null)
+                exec(undefined)
         }).catch(err => {
-            exec(null)
+            exec(undefined)
         })
     })
 }
@@ -315,67 +332,75 @@ exports.getUserDataFromUserId = function (userid) {
                     if(userdata)
                         exec(userdata)
                     else
-                        throw new Error("userdata for userid " + userid + " was null!")
+                        throw new Error("userdata for userid " + userid + " was undefined!")
                 })
             }
             else
                 throw new Error("User does not exist!")
-        }).catch(err => throw err)
+        }).catch(err => {throw err})
     })
 }
 
 // This should only be used by the server, never shared to a client!
 exports.getUserDataFromUsername = function (username) {
-    return new Promise(exec => {
-        // TODO: Does this work?
-        Database.iterateValues(function (key, value) {
-            // Make sure out object is a user
-            if(key.split('/')[0] !== "user")
-                return
-            if(value.Username.toLowerCase() === username.toLowerCase())
-                exec(value)
-        }).then(() => {
-            throw new Error("There is no registered user with the username " + username)
-        })
+    return new Promise((exec, reject) => {
+        Database.get(USERNAME_TO_USERID_PREFIX + username.toLowerCase()).then(lookupcache => {
+            if(lookupcache){
+                exports.getUserDataFromUserId(lookupcache.Id).then(userdata => {
+                    if(userdata)
+                        exec(userdata)
+                    else
+                        reject(new Error("No user found under username " + username))
+                }).catch(err => reject(err))
+            }
+            else
+                reject(new Error("No LookupCache found under username " + username))
+        }).catch(err => reject(err))
     })
 }
 
 exports.isUsernameRegistered = function (username) {
     return new Promise(exec => {
-        exports.getUserDataFromUsername(username).then(r => exec(true)).catch(err => exec(false))
+        exports.getUserDataFromUsername(username.toLowerCase()).then(r => exec(true)).catch(err => exec(false))
     })
 }
 
 // This should only be used by the server, never shared to a client!
 exports.getUserDataFromEmail = function (email) {
     return new Promise(exec => {
-        // TODO: Does this work?
-        Database.iterateValues(function (key, value) {
-            // Make sure out object is a user
-            if(key.split('/')[0] !== "user")
-                return
-            if(value.Email === email)
-                exec(value)
-        }).then(() => {
-            throw new Error("There is no registered user with the email " + email)
-        })
+        Database.get(EMAIL_TO_USERID_PREFIX + email.toLowerCase()).then(lookupcache => {
+            if(lookupcache){
+                exports.getUserDataFromUserId(lookupcache.Id).then(userdata => {
+                    if(userdata)
+                        exec(userdata)
+                    else
+                        throw new Error("No user found under email " + email)
+                }).catch(err => {throw err})
+            }
+            else
+                throw new Error("No LookupCache found under email " + email)
+        }).catch(err => {throw err})
     })
 }
 
 exports.isEmailRegistered = function (email) {
     return new Promise(exec => {
-        exports.getUserDataFromEmail(email).then(r => exec(true)).catch(err => exec(false))
+        exports.getUserDataFromEmail(email.toLowerCase()).then(r => exec(true)).catch(err => exec(false))
     })
 }
 
 exports.isPasswordCorrect = function (username, password){
     return new Promise(exec => {
         exports.getUserDataFromUsername(username).then(userdata => {
-            let hashedPassword = userdata.HashedPassword
-            bcrypt.compare(password, hashedPassword, function (err, result) {
-                if(err) throw err
-                exec(result)
-            })
+            if(userdata){
+                let hashedPassword = userdata.HashedPassword
+                bcrypt.compare(password, hashedPassword, function (err, result) {
+                    if(err) throw err
+                    exec(result)
+                })
+            }
+            else
+                exec(false)
         }).catch(err => {
             // Account probably doesn't exist
             exec(false)
@@ -526,6 +551,8 @@ exports.Login = function (username, password, twofacode){
                     exec(-1)
                 })
             }
+            else
+                exec(-1)
         }).catch(perr => {
             exec(-1)
         })
@@ -625,11 +652,11 @@ exports.changeEmail = function (username, tokenContent, newEmail) {
                     }
                     else
                         throw new Error("Failed to get user from username")
-                }).catch(uerr => throw uerr)
+                }).catch(err => {throw err})
             }
             else
                 throw new Error("Invalid Token")
-        }).catch(terr => throw terr)
+        }).catch(err => {throw err})
     })
 }
 
@@ -649,16 +676,16 @@ exports.enable2fa = function (username, tokenContent) {
                                     exec(t.otpauth_url)
                                 else
                                     throw new Error("Failed to create 2FA")
-                            }).catch(serr => throw serr)
+                            }).catch(err => {throw err})
                         }
                     }
                     else
                         throw new Error("Failed to get user from username")
-                }).catch(uerr => throw uerr)
+                }).catch(err => {throw err})
             }
             else
                 throw new Error("Invalid Token")
-        }).catch(terr => throw terr)
+        }).catch(err => {throw err})
     })
 }
 
@@ -696,7 +723,7 @@ exports.remove2fa = function (username, tokenContent) {
                     if(userdata){
                         let nud = userdata
                         nud.is2FAVerified = false
-                        nud.TwoFA = null
+                        nud.TwoFA = undefined
                         setUserData(nud).then(r => {
                             if(r)
                                 exec(true)
@@ -733,7 +760,7 @@ exports.resetPassword = function (userid, passwordResetContent, newPassword) {
     return new Promise(exec => {
         exports.getUserDataFromUserId(userid).then(userdata => {
             if(userdata){
-                if(userdata.passwordResetToken !== null && userdata.passwordResetToken !== "" &&
+                if(userdata.passwordResetToken !== undefined && userdata.passwordResetToken !== "" &&
                     userdata.passwordResetToken === passwordResetContent){
                     let nud = userdata
                     hashPassword(newPassword).then(hash => {
@@ -778,7 +805,7 @@ function isValidBio(bio){
             if(bio.DisplayName.length <= MAX_BIO_LENGTH)
                 displayNameValid = true
         let proav = true
-        if(bio.Pronouns !== null){
+        if(bio.Pronouns !== undefined){
             if(!PronounTools.isValidPronounId(bio.Pronouns.nominativeId))
                 proav = false
             if(!PronounTools.isValidPronounId(bio.Pronouns.accusativeId))
@@ -1133,7 +1160,7 @@ function runModeratorCommand(command){
                     let userid = args[1]
                     let warnreason = args[2]
                     let warndescription = args[3]
-                    if(userid === null || warnreason === null || warndescription === null){
+                    if(userid === undefined || warnreason === undefined || warndescription === undefined){
                         exec(false)
                     } else{
                         exports.getUserDataFromUserId(userid).then(userdata => {
@@ -1167,7 +1194,7 @@ function runModeratorCommand(command){
                     let hours = args[2]
                     let banreason = args[3]
                     let bandescription = args[4]
-                    if (userid === null || (hours === null || isNaN(hours)) || banreason === null || bandescription === null) {
+                    if (userid === undefined || (hours === undefined || isNaN(hours)) || banreason === undefined || bandescription === undefined) {
                         exec(false)
                     } else {
                         exports.getUserDataFromUserId(userid).then(userdata => {
