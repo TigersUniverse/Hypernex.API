@@ -15,7 +15,7 @@ exports.init = function (usersModule, databaseModule) {
 
 // Called whenever a user is created
 exports.initUser = function (userdata) {
-    return new Promise(exec => {
+    return new Promise((exec, reject) => {
         let newSocialData = {
             Id: userdata.Id,
             Posts: [],
@@ -39,7 +39,7 @@ exports.initUser = function (userdata) {
                 exec(false)
         }).catch(err => {
             Logger.Error("Failed to save posts for reason " + err)
-            throw err
+            reject(err)
         })
     })
 }
@@ -56,22 +56,22 @@ exports.getUserSocialData = function (userid) {
 }
 
 function setSocialData(socialdata){
-    return new Promise(exec => {
+    return new Promise((exec, reject) => {
         exports.getUserSocialData(socialdata.Id).then(r => {
             if(r){
                 Database.set(SOCIAL_PREFIX + socialdata.Id, socialdata).then(rr => {
                     exec(rr)
                 }).catch(uerr => {
                     Logger.Error("Failed to update socialdata for " + socialdata.Id + " for reason " + uerr)
-                    throw new Error(uerr)
+                    reject(uerr)
                 })
             }
             else{
-                throw new Error("User " + socialdata.Id + " does not exist!")
+                reject(new Error("User " + socialdata.Id + " does not exist!"))
             }
         }).catch(derr => {
             Logger.Error("Failed to check for user " + socialdata.Id + " for reason " + derr)
-            throw new Error(derr)
+            reject(derr)
         })
     })
 }

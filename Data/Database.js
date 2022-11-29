@@ -57,10 +57,10 @@ exports.connect = function (database, host, port, username, password, tls) {
 }
 
 exports.get = function (key){
-    return new Promise(exec => {
+    return new Promise((exec, reject) => {
         client.get(key).then(reply => {
             exec(JSON.parse(reply))
-        }).catch(err => {throw err})
+        }).catch(err => reject(err))
     })
 }
 
@@ -73,10 +73,10 @@ exports.doesKeyExist = function (key) {
 }
 
 exports.set = function(key, value){
-    return new Promise(exec => {
+    return new Promise((exec, reject) => {
         client.set(key, JSON.stringify(value)).then(reply => {
             exec(reply)
-        }).catch(err => {throw err})
+        }).catch(err => reject(err))
     })
 }
 

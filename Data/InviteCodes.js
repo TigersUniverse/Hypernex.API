@@ -21,7 +21,7 @@ exports.init = function (database, users, serverConfig) {
 }
 
 exports.initUser = function (userid) {
-    return new Promise(exec => {
+    return new Promise((exec, reject) => {
         let inviteCodeData = {
             Id: userid,
             InviteCodes: []
@@ -37,12 +37,12 @@ exports.initUser = function (userid) {
                         exec(false)
                 }).catch(err => {
                     Logger.Error("Failed to save InviteCodeData for reason " + err)
-                    throw err
+                    reject(err)
                 })
             }
         }).catch(err => {
             Logger.Error("Failed to get InviteCodeData for reason " + err)
-            throw err
+            reject(eerr)
         })
     })
 }
@@ -67,7 +67,7 @@ exports.getInviteCodeData = function (userid) {
 }
 
 function setInviteCodeData(inviteCodes, inviteCodeData){
-    return new Promise(exec => {
+    return new Promise((exec, reject) => {
         let i = ArrayTools.customFind(inviteCodes.Users, item => item.Id === inviteCodeData.Id)
         if(inviteCodeData)
             inviteCodes.Users[i] = inviteCodeData
@@ -78,7 +78,7 @@ function setInviteCodeData(inviteCodes, inviteCodeData){
                 exec(false)
         }).catch(err => {
             Logger.Error("Failed to save InviteCodeData for reason " + err)
-            throw err
+            reject(err)
         })
     })
 }
