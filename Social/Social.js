@@ -124,7 +124,6 @@ function isUserMentioned(username, content){
     let usernames = []
     for(let x = 0; x < ats.length; x++){
         let at = ats[x]
-        let hitgoal = false
         let username = ""
         for(let y = at; y < content.length; y++){
             let letter = content[y]
@@ -141,37 +140,119 @@ function isUserMentioned(username, content){
     return !!u
 }
 
+function getTagsInPost(content){
+    let hashtags = []
+    for(let i = 0; i < content.length; i++){
+        let letter = content[i]
+        if(letter === '#')
+            hashtags.push(i)
+    }
+    if(!hashtags.length <= 0)
+        return false
+    let tags = []
+    for(let x = 0; x < hashtags.length; x++){
+        let at = hashtags[x]
+        let tag = ""
+        for(let y = at; y < content.length; y++){
+            let letter = content[y]
+            let done = false
+            if(letter === ' '){
+                tags.push(tag)
+                done = true
+            }
+            if(!done)
+                tag += letter.toLowerCase()
+        }
+    }
+    return tags
+}
+
 // Don't forget to call canUserSeePost first!
 function canUserCommentPost(userid, post){
     return new Promise(exec => {
         let commentPermissions = post.CommentPermissions
-        if(commentPermissions === exports.CommentPermissions.Anyone)
-            exec(true)
-        else{
-            Users.getUserDataFromUserId(post.FromUserId).then(userdata => {
-                if(userdata){
-                    switch (commentPermissions) {
-                        case exports.CommentPermissions.Followers:
-                            let follower = ArrayTools.find(userdata.Followers, userid)
-                            if(follower)
-                                exec(true)
+        if(post.CommentDetails.isComment){
+            // get root post
+            exports.getPost(post.CommentDetails.repliedToPostData.replyPostId, post.CommentDetails.repliedToPostData.replyPostUserId).then(p => {
+                if(p){
+                    commentPermissions = p.CommentPermissions
+                    if(commentPermissions === exports.CommentPermissions.Anyone)
+                        exec(true)
+                    else{
+                        Users.getUserDataFromUserId(p.FromUserId).then(userdata => {
+                            if(userdata){
+                                switch (commentPermissions) {
+                                    case exports.CommentPermissions.Followers:
+                                        let follower = ArrayTools.find(userdata.Followers, userid)
+                                        if(follower)
+                                            exec(true)
+                                        else
+                                            exec(false)
+                                        break
+                                    case exports.CommentPermissions.Following:
+                                        let following = ArrayTools.find(userdata.Following, userid)
+                                        if(following)
+                                            exec(true)
+                                        else
+                                            exec(false)
+                                        break
+                                    case exports.CommentPermissions.Mentioned:
+                                        if(isUserMentioned(userdata.Username, post.Content))
+                                            exec(true)
+                                        else
+                                            exec(false)
+                                        break
+                                    default:
+                                        exec(false)
+                                        break
+                                }
+                            }
                             else
                                 exec(false)
-                            break
-                        case exports.CommentPermissions.Following:
-                            let following = ArrayTools.find(userdata.Following, userid)
-                            if(following)
-                                exec(true)
-                            else
-                                exec(false)
-                            break
-                        case exports.CommentPermissions.Mentioned:
-
+                        }).catch(() => exec(false))
                     }
                 }
                 else
                     exec(false)
             }).catch(() => exec(false))
+        }
+        else{
+            // root post
+            if(commentPermissions === exports.CommentPermissions.Anyone)
+                exec(true)
+            else{
+                Users.getUserDataFromUserId(post.FromUserId).then(userdata => {
+                    if(userdata){
+                        switch (commentPermissions) {
+                            case exports.CommentPermissions.Followers:
+                                let follower = ArrayTools.find(userdata.Followers, userid)
+                                if(follower)
+                                    exec(true)
+                                else
+                                    exec(false)
+                                break
+                            case exports.CommentPermissions.Following:
+                                let following = ArrayTools.find(userdata.Following, userid)
+                                if(following)
+                                    exec(true)
+                                else
+                                    exec(false)
+                                break
+                            case exports.CommentPermissions.Mentioned:
+                                if(isUserMentioned(userdata.Username, post.Content))
+                                    exec(true)
+                                else
+                                    exec(false)
+                                break
+                            default:
+                                exec(false)
+                                break
+                        }
+                    }
+                    else
+                        exec(false)
+                }).catch(() => exec(false))
+            }
         }
     })
 }
@@ -189,6 +270,7 @@ function postTemplate(userid, postid, content, commentPerms){
         PostId: postid,
         Content: content,
         DatePublished: DateTools.getUnixTime(new Date()),
+        Tags: [],
         CommentDetails: {
             isComment: false,
             repliedToPostData: undefined
@@ -210,6 +292,7 @@ function createPostId(posts){
     for(let i = 0; i < posts.length; i++){
         let post = posts[i]
     }
+    return id
 }
 
 exports.createPost = function (userid, tokenContent, content, perms) {
@@ -220,11 +303,57 @@ exports.createPost = function (userid, tokenContent, content, perms) {
                 exports.getUserSocialData(userid).then(socialdata => {
                     if(socialdata){
                         let nsd = socialdata
-                        let post = postTemplate(userid, content, perms)
+                        let post = postTemplate(userid, createPostId(socialdata.Posts), content, perms)
+                        post.Tags = getTagsInPost(post.Content)
                         nsd.Posts.push(post)
                         setSocialData(nsd).then(r => {
                             if(r)
                                 exec(true)
+                            else
+                                exec(false)
+                        }).catch(() => exec(false))
+                    }
+                    else
+                        exec(false)
+                }).catch(() => exec(false))
+            }
+            else
+                exec(false)
+        }).catch(() => exec(false))
+    })
+}
+
+exports.createComment = function (userid, tokenContent, replyPostUserId, replyPostId, content) {
+    return new Promise(exec => {
+        Users.isUserIdTokenValid(userid, tokenContent).then(tokenValid => {
+            if(tokenValid){
+                exports.getPost(replyPostUserId, replyPostId).then(post => {
+                    if(post){
+                        canUserCommentPost(userid, post).then(canComment => {
+                            if(canComment){
+                                exports.getUserSocialData(userid).then(socialdata => {
+                                    if(socialdata){
+                                        let p = postTemplate(socialdata.Id, createPostId(socialdata.Posts), content, post.CommentPermissions)
+                                        p.CommentDetails = {
+                                            isComment: true,
+                                            repliedToPostData: {
+                                                replyPostId: post.PostId,
+                                                replyPostUserId: post.FromUserId
+                                            }
+                                        }
+                                        let nsd = socialdata
+                                        nsd.Posts.push(p)
+                                        setSocialData(nsd).then(r => {
+                                            if(r)
+                                                exec(true)
+                                            else
+                                                exec(false)
+                                        }).catch(() => exec(false))
+                                    }
+                                    else
+                                        exec(false)
+                                }).catch(() => exec(false))
+                            }
                             else
                                 exec(false)
                         }).catch(() => exec(false))
