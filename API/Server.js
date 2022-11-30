@@ -164,12 +164,13 @@ exports.initapp = function (usersModule, serverConfig){
     })
 
     app.post(getAPIEndpoint() + "login", function (req, res) {
+        let app = req.body.app
         let username = req.body.username
         let password = req.body.password
         // not important if its undefined, some people may not have a 2fa code
         let twofacode = req.body.twofacode
         if(isUserBodyValid(username, 'string') && isUserBodyValid(password, 'string')){
-            Users.Login(username, password, twofacode).then(r => {
+            Users.Login(app, username, password, twofacode).then(r => {
                 let result = r.result
                 let token = r.token
                 let status = r.status

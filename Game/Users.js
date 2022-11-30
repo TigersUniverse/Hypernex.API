@@ -466,29 +466,28 @@ exports.isPasswordCorrect = function (username, password){
 exports.isUserIdTokenValid = function (userid, tokenContent) {
     return new Promise((exec, reject) => {
         exports.getUserDataFromUserId(userid).then(userdata => {
-            if(userdata){
-                for (let tokenIndex = 0; tokenIndex < userdata.AccountTokens.length; tokenIndex++){
-                    let token = userdata.AccountTokens[tokenIndex]
-                    if(!GenericToken.isTokenValid(token) || (userdata.WarnStatus.isWarned || userdata.BanStatus.isBanned)){
-                        let newtokens = ArrayTools.customFilterArray(userdata.AccountTokens,
-                            item => item.content !== token.content)
-                        let nud = userdata
-                        nud.AccountTokens = newtokens
-                        setUserData(nud).then(r => {
-                            // Not a huge deal if this fails, token is still invalid regardless
-                            exec(false)
-                        })
-                    }
-                    else{
-                        // Token is valid, check for same content
-                        if(tokenContent === token.content){
-                            exec(true)
-                        }
+            let v = false
+            let NewTokens = userdata.AccountTokens
+            for (let tokenIndex = 0; tokenIndex < userdata.AccountTokens.length; tokenIndex++){
+                let token = userdata.AccountTokens[tokenIndex]
+                if(!GenericToken.isTokenValid(token) || (userdata.WarnStatus.isWarned || userdata.BanStatus.isBanned)){
+                    NewTokens = ArrayTools.customFilterArray(userdata.AccountTokens,
+                        item => item.content !== token.content)
+                }
+                else{
+                    // Token is valid, check for same content
+                    if(tokenContent === token.content){
+                        v = true
                     }
                 }
             }
+            if(userdata.AccountTokens.length !== NewTokens.length){
+                let nud = userdata
+                nud.AccountTokens = NewTokens
+                setUserData(nud).then(() => exec(v))
+            }
             else
-                reject(new Error("Failed to get UserData for UserId " + userid))
+                exec(v)
         })
     })
 }
@@ -498,25 +497,28 @@ exports.isUserTokenValid = function (username, tokenContent) {
     return new Promise((exec, reject) => {
         exports.getUserDataFromUsername(username).then(userdata => {
             if(userdata){
+                let v = false
+                let NewTokens = userdata.AccountTokens
                 for (let tokenIndex = 0; tokenIndex < userdata.AccountTokens.length; tokenIndex++){
                     let token = userdata.AccountTokens[tokenIndex]
                     if(!GenericToken.isTokenValid(token) || (userdata.WarnStatus.isWarned || userdata.BanStatus.isBanned)){
-                        let newtokens = ArrayTools.customFilterArray(userdata.AccountTokens,
+                        NewTokens = ArrayTools.customFilterArray(userdata.AccountTokens,
                             item => item.content !== token.content)
-                        let nud = userdata
-                        nud.AccountTokens = newtokens
-                        setUserData(nud).then(r => {
-                            // Not a huge deal if this fails, token is still invalid regardless
-                            exec(false)
-                        })
                     }
                     else{
                         // Token is valid, check for same content
                         if(tokenContent === token.content){
-                            exec(true)
+                            v = true
                         }
                     }
                 }
+                if(userdata.AccountTokens.length !== NewTokens.length){
+                    let nud = userdata
+                    nud.AccountTokens = NewTokens
+                    setUserData(nud).then(() => exec(v))
+                }
+                else
+                    exec(v)
             }
             else
                 reject(new Error("Failed to get UserData for Username " + username))
@@ -537,7 +539,7 @@ exports.isUserTokenValid = function (username, tokenContent) {
  * 3: Warned
  * 4: Correct Password
  */
-exports.Login = function (username, password, twofacode){
+exports.Login = function (app, username, password, twofacode){
     return new Promise(exec => {
         exports.isPasswordCorrect(username, password).then(correct => {
             if(correct){
@@ -546,13 +548,12 @@ exports.Login = function (username, password, twofacode){
                     if(userdata.BanStatus.isBanned){
                         bane = userdata.BanStatus.BanEnd
                     }
-                    if((bane && bane < DateTools.getUnixTime(new Date())) || !bane){
+                    if((bane && DateTools.getUnixTime(new Date()) > bane) || !bane){
                         // remove ban
-                        if(userdata.isBanned)
-                            userdata.isBanned = false
+                        userdata.BanStatus.isBanned = false
                         if(!userdata.is2FAVerified){
                             // No 2FA, continue login
-                            let token = GenericToken.createToken("login")
+                            let token = GenericToken.createToken(app)
                             // Add token to userdata and save
                             userdata.AccountTokens.push(token)
                             if(userdata.WarnStatus.isWarned){
@@ -580,7 +581,7 @@ exports.Login = function (username, password, twofacode){
                             if(twofacode === undefined || twofacode === "")
                                 exec(exports.LoginResult.Missing2FA)
                             else if(OTP.verify2faOPT(userdata, twofacode)){
-                                let token = GenericToken.createToken("login")
+                                let token = GenericToken.createToken(app)
                                 // Add token to userdata and save
                                 userdata.AccountTokens.push(token)
                                 if(userdata.WarnStatus.isWarned){

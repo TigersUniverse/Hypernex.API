@@ -6,6 +6,8 @@ const ID = require("./../Data/ID")
 const DAY_HOUR = 24
 
 exports.createToken = function (app, hoursExpire, noExpire) {
+    if(app === undefined || app.toLowerCase() === "api")
+        app = "unknown"
     // Default time is 7 days
     if(hoursExpire === undefined)
         hoursExpire = DateTools.getUnixTime(date.addHours(new Date(), DAY_HOUR * 7))
