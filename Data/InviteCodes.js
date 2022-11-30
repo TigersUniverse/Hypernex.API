@@ -137,30 +137,37 @@ exports.validateInviteCode = function (inviteCode, removeOnUsed) {
             exec(true)
         else{
             let isGlobalCode = ArrayTools.find(ServerConfig.LoadedConfig.SignupRules.GlobalInviteCodes, inviteCode)
-            if(isGlobalCode)
+            if(isGlobalCode !== undefined)
                 exec(true)
             else{
                 Database.get(INVITECODE_KEY).then(invitecodes => {
                     if(invitecodes){
-                        for(let x = 0; x < invitecodes.Users.length; x++){
-                            let user = invitecodes.Users[x]
-                            let y = ArrayTools.find(user.InviteCodes, inviteCode)
-                            if(y){
-                                let code = user.InviteCodes[y]
-                                if(removeOnUsed){
-                                    exports.removeInviteCodeFromUserId(user.Id, code).then(r => {
-                                        if(r)
-                                            exec(true)
+                        if(invitecodes.Users.length <= 0)
+                            exec(false)
+                        else
+                            for(let x = 0; x < invitecodes.Users.length; x++){
+                                let user = invitecodes.Users[x]
+                                if(user.InviteCodes.length >= 0)
+                                    exec(false)
+                                else{
+                                    let y = ArrayTools.find(user.InviteCodes, inviteCode)
+                                    if(y !== undefined){
+                                        let code = user.InviteCodes[y]
+                                        if(removeOnUsed){
+                                            exports.removeInviteCodeFromUserId(user.Id, code).then(r => {
+                                                if(r)
+                                                    exec(true)
+                                                else
+                                                    exec(false)
+                                            }).catch(() => exec(false))
+                                        }
                                         else
-                                            exec(false)
-                                    }).catch(() => exec(false))
+                                            exec(true)
+                                    }
+                                    else
+                                        exec(false)
                                 }
-                                else
-                                    exec(true)
                             }
-                            else
-                                exec(false)
-                        }
                     }
                     else
                         exec(false)

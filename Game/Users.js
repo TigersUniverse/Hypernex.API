@@ -137,7 +137,7 @@ function isValidUsername(username){
     for(let i = 0; i < username.length; i++){
         let letter = username[i]
         let ii = ArrayTools.find(ACCEPTABLE_CHARACTERS_IN_USERNAME, letter)
-        if(!ii){
+        if(ii === undefined){
             if(letter === "_" && _s < 1)
                 _s++
             else
@@ -147,6 +147,54 @@ function isValidUsername(username){
     return true
 }
 
+function isValidPassword(password){
+    if(password.length < 8)
+        return false
+    let caps = 0
+    for(let i = 0; i < password.length; i++){
+        let f = ArrayTools.find(PASSWORD_CAPS, password[i])
+        if(f !== undefined)
+            caps++
+    }
+    if(caps < 2)
+        return false
+    let lower = 0
+    for(let i = 0; i < password.length; i++){
+        let f = ArrayTools.find(PASSWORD_LOWER, password[i])
+        if(f !== undefined)
+            lower++
+    }
+    if(lower < 2)
+        return false
+    let nums = 0
+    for(let i = 0; i < password.length; i++){
+        let f = ArrayTools.find(PASSWORD_NUM, password[i])
+        if(f !== undefined)
+            nums++
+    }
+    if(nums < 2)
+        return false
+    let special = 0
+    for(let i = 0; i < password.length; i++){
+        let f = ArrayTools.find(PASSWORD_CAPS, password[i])
+        let ff = ArrayTools.find(PASSWORD_LOWER, password[i])
+        let fff = ArrayTools.find(PASSWORD_NUM, password[i])
+        if(f === undefined && ff === undefined && fff === undefined)
+            special++
+    }
+    if(special < 2)
+        return false
+    return true
+}
+
+const PASSWORD_CAPS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S",
+                       "T", "U", "V", "W", "X", "Y", "Z"]
+
+const PASSWORD_LOWER = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p",
+                        "q", "r", "s", "t", "u", "v", "w", "x", "y", "x"]
+
+const PASSWORD_NUM = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
+
 exports.createUser = function (username, password, email, inviteCode) {
     return new Promise((exec, reject) => {
         exports.isEmailRegistered(email.toLowerCase()).then(emailRegistered => {
@@ -154,40 +202,46 @@ exports.createUser = function (username, password, email, inviteCode) {
                 if(Emailing.isValidEmail(email)){
                     exports.isUsernameRegistered(username.toLowerCase()).then(usernameRegistered => {
                         if(!usernameRegistered){
-                            if(isValidUsername(username)){
+                            if(isValidUsername(username) && isValidPassword(password)){
                                 InviteCodes.validateInviteCode(inviteCode, serverConfig.LoadedConfig.SignupRules.RemoveCodeAfterUse).then(allow => {
                                     if(allow){
-                                        let id
-                                        let alreadyExists = true
-                                        // TODO: Can we make this faster?
-                                        while(alreadyExists){
-                                            id = ID.new(ID.IDTypes.User)
-                                            let exec = false
-                                            Database.doesKeyExist(USERDATA_DATABASE_PREFIX + id).then(exists => {
-                                                alreadyExists = exists
-                                                exec = true
-                                            })
-                                            while(!exec){}
-                                        }
-                                        hashPassword(password).then(hashedPassword => {
-                                            let userdata = createUserData(id, username, hashedPassword, email)
-                                            Database.set(USERDATA_DATABASE_PREFIX + id, userdata).then(reply => {
-                                                if(!reply)
-                                                    reject(new Error("Failed to save user " + username + " to database!"))
-                                                else{
-                                                    // Lookup Cache
-                                                    Database.set(USERNAME_TO_USERID_PREFIX + username.toLowerCase(), {
-                                                        Id: id
-                                                    }).then(r => {
-                                                        if(r){
-                                                            Database.set(EMAIL_TO_USERID_PREFIX + email.toLowerCase(), {
+                                        let id = ID.new(ID.IDTypes.User)
+                                        // TODO: Check if ID exists
+                                        Database.doesKeyExist(USERDATA_DATABASE_PREFIX + id).then(exists => {
+                                            if(!exists){
+                                                hashPassword(password).then(hashedPassword => {
+                                                    let userdata = createUserData(id, username, hashedPassword, email)
+                                                    Database.set(USERDATA_DATABASE_PREFIX + id, userdata).then(reply => {
+                                                        if(!reply)
+                                                            reject(new Error("Failed to save user " + username + " to database!"))
+                                                        else{
+                                                            // Lookup Cache
+                                                            Database.set(USERNAME_TO_USERID_PREFIX + username.toLowerCase(), {
                                                                 Id: id
                                                             }).then(r => {
                                                                 if(r){
-                                                                    Social.initUser(userdata).then(r => {
-                                                                        if(!r)
-                                                                            reject(new Error("Failed to create socialdata for unknown reason"))
-                                                                        exec(userdata)
+                                                                    Database.set(EMAIL_TO_USERID_PREFIX + email.toLowerCase(), {
+                                                                        Id: id
+                                                                    }).then(r => {
+                                                                        if(r){
+                                                                            Social.initUser(userdata).then(r => {
+                                                                                if(!r)
+                                                                                    reject(new Error("Failed to create socialdata for unknown reason"))
+                                                                                else{
+                                                                                    InviteCodes.initUser(id).then(r => {
+                                                                                        if(!r)
+                                                                                            reject(new Error("Failed to create invitedata for unknown reason"))
+                                                                                        else
+                                                                                            exec(userdata)
+                                                                                    })
+                                                                                }
+                                                                            }).catch(err => {
+                                                                                Logger.Error("Failed to create user " + username + " for reason " + err)
+                                                                                reject(err)
+                                                                            })
+                                                                        }
+                                                                        else
+                                                                            reject(new Error("Failed to save Lookup Cache for user " + username))
                                                                     }).catch(err => {
                                                                         Logger.Error("Failed to create user " + username + " for reason " + err)
                                                                         reject(err)
@@ -200,19 +254,19 @@ exports.createUser = function (username, password, email, inviteCode) {
                                                                 reject(err)
                                                             })
                                                         }
-                                                        else
-                                                            reject(new Error("Failed to save Lookup Cache for user " + username))
                                                     }).catch(err => {
                                                         Logger.Error("Failed to create user " + username + " for reason " + err)
                                                         reject(err)
                                                     })
-                                                }
-                                            }).catch(err => {
-                                                Logger.Error("Failed to create user " + username + " for reason " + err)
-                                                reject(err)
-                                            })
+                                                }).catch(err => {
+                                                    Logger.Error("Failed to create user " + username + " for reason " + err)
+                                                    reject(err)
+                                                })
+                                            }
+                                            else
+                                                reject(new Error("The rarest error ever"))
                                         }).catch(err => {
-                                            Logger.Error("Failed to create user " + username + " for reason " + err)
+                                            Logger.Error("Failed to check for existing Id")
                                             reject(err)
                                         })
                                     }
@@ -226,8 +280,8 @@ exports.createUser = function (username, password, email, inviteCode) {
                                 })
                             }
                             else{
-                                Logger.Error("Cannot create user " + username + " because the username " + username + " is invalid!")
-                                reject(new Error("Username is invalid"))
+                                Logger.Error("Cannot create user " + username + " because the username or password is invalid!")
+                                reject(new Error("Username or Password is invalid"))
                             }
                         }
                         else{
@@ -414,7 +468,7 @@ exports.isUserIdTokenValid = function (userid, tokenContent) {
             if(userdata){
                 for (let tokenIndex = 0; tokenIndex < userdata.AccountTokens.length; tokenIndex++){
                     let token = userdata.AccountTokens[tokenIndex]
-                    if(!GenericToken.isTokenValid(token)){
+                    if(!GenericToken.isTokenValid(token) || (userdata.WarnStatus.isWarned || userdata.BanStatus.isBanned)){
                         let newtokens = ArrayTools.customFilterArray(userdata.AccountTokens,
                             item => item.content !== token.content)
                         let nud = userdata
@@ -445,7 +499,7 @@ exports.isUserTokenValid = function (username, tokenContent) {
             if(userdata){
                 for (let tokenIndex = 0; tokenIndex < userdata.AccountTokens.length; tokenIndex++){
                     let token = userdata.AccountTokens[tokenIndex]
-                    if(!GenericToken.isTokenValid(token)){
+                    if(!GenericToken.isTokenValid(token) || (userdata.WarnStatus.isWarned || userdata.BanStatus.isBanned)){
                         let newtokens = ArrayTools.customFilterArray(userdata.AccountTokens,
                             item => item.content !== token.content)
                         let nud = userdata
@@ -487,15 +541,19 @@ exports.Login = function (username, password, twofacode){
         exports.isPasswordCorrect(username, password).then(correct => {
             if(correct){
                 exports.getUserDataFromUsername(username).then(userdata => {
+                    let bane
                     if(userdata.BanStatus.isBanned){
-                        exec(exports.LoginResult.Banned, userdata.BanStatus)
+                        bane = userdata.BanStatus.BanEnd
                     }
-                    else
+                    if((bane && bane < DateTools.getUnixTime(new Date())) || !bane){
+                        // remove ban
+                        if(userdata.isBanned)
+                            userdata.isBanned = false
                         if(!userdata.is2FAVerified){
                             // No 2FA, continue login
                             let token = GenericToken.createToken("login")
                             // Add token to userdata and save
-                            userdata.AccountTokens[userdata.AccountTokens] = token
+                            userdata.AccountTokens.push(token)
                             if(userdata.WarnStatus.isWarned){
                                 // Mark the warning as read, and let the client know they were warned
                                 userdata.WarnStatus.isWarned = false
@@ -503,26 +561,27 @@ exports.Login = function (username, password, twofacode){
                                     if(r){
                                         let tud = userdata
                                         tud.WarnStatus.isWarned = true
-                                        exec(exports.LoginResult.Warned, token, tud.WarnStatus)
+                                        exec({result: exports.LoginResult.Warned, token: token, status: tud.WarnStatus})
                                     }
                                     else
-                                        exec(-1)
-                                }).catch(() => exec(-1))
+                                        exec({result: -1})
+                                }).catch(() => exec({result: -1}))
                             }
                             else
                                 setUserData(userdata).then(r => {
                                     if(r)
-                                        exec(exports.LoginResult.Correct, token)
+                                        exec({result: exports.LoginResult.Correct, token: token})
                                     else
-                                        exec(-1)
-                                }).catch(() => exec(-1))
+                                        exec({result: -1})
+                                }).catch(() => exec({result: -1}))
                         }
                         else{
-                            // this is a duplicate of above, maybe function it later but idk
-                            if(OTP.verify2faOPT(userdata, twofacode)){
+                            if(twofacode === undefined || twofacode === "")
+                                exec(exports.LoginResult.Missing2FA)
+                            else if(OTP.verify2faOPT(userdata, twofacode)){
                                 let token = GenericToken.createToken("login")
                                 // Add token to userdata and save
-                                userdata.AccountTokens[userdata.AccountTokens] = token
+                                userdata.AccountTokens.push(token)
                                 if(userdata.WarnStatus.isWarned){
                                     // Mark the warning as read, and let the client know they were warned
                                     userdata.WarnStatus.isWarned = false
@@ -530,31 +589,34 @@ exports.Login = function (username, password, twofacode){
                                         if(r){
                                             let tud = userdata
                                             tud.WarnStatus.isWarned = true
-                                            exec(exports.LoginResult.Warned, token, tud.WarnStatus)
+                                            exec({result: exports.LoginResult.Warned, token: token, status: tud.WarnStatus})
                                         }
                                         else
-                                            exec(-1)
-                                    }).catch(() => exec(-1))
+                                            exec({result: -1})
+                                    }).catch(() => exec({result: -1}))
                                 }
                                 else
                                     setUserData(userdata).then(r => {
                                         if(r)
-                                            exec(exports.LoginResult.Correct, token)
+                                            exec({result: exports.LoginResult.Correct, token: token})
                                         else
-                                            exec(-1)
-                                    }).catch(() => exec(-1))
+                                            exec({result: -1})
+                                    }).catch(() => exec({result: -1}))
                             }
                             else
-                                exec(exports.LoginResult.Incorrect)
+                                exec({result: exports.LoginResult.Incorrect})
                         }
+                    }
+                    else
+                        exec({result: exports.LoginResult.Banned, status: userdata.BanStatus})
                 }).catch(uerr => {
-                    exec(-1)
+                    exec({result: -1})
                 })
             }
             else
-                exec(-1)
+                exec({result: -1})
         }).catch(perr => {
-            exec(-1)
+            exec({result: -1})
         })
     })
 }
@@ -1031,7 +1093,7 @@ exports.acceptFriendRequest = function (username, tokenContent, fromUserId) {
                             if(fromUserData){
                                 let isOutgoing = ArrayTools.find(fromUserData.OutgoingFriendRequests, userdata.Id)
                                 let isRequested = ArrayTools.find(userdata.FriendRequests, fromUserData.Id)
-                                if(isOutgoing && isRequested){
+                                if(isOutgoing !== undefined && isRequested !== undefined){
                                     let nud = userdata
                                     let newFriendRequests = ArrayTools.filterArray(nud.FriendRequests, fromUserData.Id)
                                     nud.FriendRequests = newFriendRequests
@@ -1085,13 +1147,13 @@ exports.declineFriendRequest = function (username, tokenContent, fromUserId) {
                             if(fromUserData){
                                 let isOutgoing = ArrayTools.find(fromUserData.OutgoingFriendRequests, userdata.Id)
                                 let isRequested = ArrayTools.find(userdata.FriendRequests, fromUserData.Id)
-                                if(isOutgoing){
+                                if(isOutgoing !== undefined){
                                     let nfud = fromUserData
                                     let newOutgoingFriends = ArrayTools.filterArray(nfud.OutgoingFriendRequests, userdata.Id)
                                     nfud.OutgoingFriendRequests = newOutgoingFriends
                                     setUserData(nfud)
                                 }
-                                if(isRequested){
+                                if(isRequested !== undefined){
                                     let nud = userdata
                                     let newFriendRequests = ArrayTools.filterArray(nud.FriendRequests, fromUserData.Id)
                                     nud.FriendRequests = newFriendRequests

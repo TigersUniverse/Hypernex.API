@@ -65,7 +65,7 @@ exports.initapp = function (usersModule, serverConfig){
             res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
     })
 
-    app.get(getAPIEndpoint() + "doesUserExist", function (req, res) {
+    app.post(getAPIEndpoint() + "doesUserExist", function (req, res) {
         let userid = req.body.userid
         if(isUserBodyValid(userid, 'string')){
             Users.doesUserExist(userid).then(r => {
@@ -81,7 +81,7 @@ exports.initapp = function (usersModule, serverConfig){
             res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
     })
 
-    app.get(getAPIEndpoint() + "getUser", function (req, res) {
+    app.post(getAPIEndpoint() + "getUser", function (req, res) {
         let userid = req.body.userid
         let username = req.body.username
         let tokenContent = req.body.tokenContent
@@ -169,7 +169,10 @@ exports.initapp = function (usersModule, serverConfig){
         // not important if its undefined, some people may not have a 2fa code
         let twofacode = req.body.twofacode
         if(isUserBodyValid(username, 'string') && isUserBodyValid(password, 'string')){
-            Users.Login(username, password, twofacode).then((result, token, status) => {
+            Users.Login(username, password, twofacode).then(r => {
+                let result = r.result
+                let token = r.token
+                let status = r.status
                 switch (result) {
                     case Users.LoginResult.Incorrect:
                         res.end(APIMessage.craftAPIMessage(true, "Incorrect credentials"), {

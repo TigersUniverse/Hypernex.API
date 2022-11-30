@@ -1,6 +1,3 @@
-// TODO: Replace all "throw new Error" with reject in Promises
-// I actually cant believe you did that
-
 const fs = require("fs")
 const process = require("process")
 

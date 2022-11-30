@@ -23,5 +23,5 @@ exports.createToken = function (app, hoursExpire, noExpire) {
 exports.isTokenValid = function (token){
     if(token.dateExpire === undefined)
         return true;
-    return token.dateExpire < new DateTools.getUnixTime(new Date())
+    return token.dateExpire > DateTools.getUnixTime(new Date())
 }
