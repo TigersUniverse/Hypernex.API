@@ -1,4 +1,5 @@
 const fs = require('fs')
+
 const Logger = require("./../Logging/Logger.js")
 
 exports.LoadedConfig = {
@@ -55,7 +56,7 @@ exports.LoadConfig = function (configLocation) {
 exports.SaveConfig = function (configLocation) {
     if(configLocation === undefined)
         configLocation = "config.json"
-    let data = JSON.stringify(exports.LoadedConfig)
+    let data = JSON.stringify(exports.LoadedConfig, null, 4)
     fs.writeFileSync(configLocation, data)
     Logger.Log("Saved LoadedConfig to file " + configLocation)
 }

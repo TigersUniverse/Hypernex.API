@@ -65,15 +65,15 @@ function createUserData(id, username, hashedPassword, email){
         AccountCreationDate: DateTools.getUnixTime(new Date()),
         BanStatus: {
             isBanned: false,
-            BanBegin: undefined,
-            BanEnd: undefined,
+            BanBegin: 0,
+            BanEnd: 0,
             BanReason: "",
             BanDescription: ""
         },
         BanCount: 0,
         WarnStatus: {
             isWarned: false,
-            TimeWarned: undefined,
+            TimeWarned: 0,
             WarnReason: "",
             WarnDescription: ""
         },
@@ -91,7 +91,8 @@ exports.censorUser = function (userdata){
             Description: userdata.Bio.Description,
             PfpURL: userdata.Bio.PfpURL,
             BannerURL: userdata.Bio.BannerURL,
-            DisplayName: userdata.Bio.DisplayName
+            DisplayName: userdata.Bio.DisplayName,
+            Pronouns: userdata.Bio.Pronouns
         },
         Rank: userdata.Rank
     }
@@ -203,12 +204,12 @@ exports.createUser = function (username, password, email, inviteCode) {
                     exports.isUsernameRegistered(username.toLowerCase()).then(usernameRegistered => {
                         if(!usernameRegistered){
                             if(isValidUsername(username) && isValidPassword(password)){
-                                InviteCodes.validateInviteCode(inviteCode, serverConfig.LoadedConfig.SignupRules.RemoveCodeAfterUse).then(allow => {
-                                    if(allow){
-                                        let id = ID.new(ID.IDTypes.User)
-                                        // TODO: Check if ID exists
-                                        Database.doesKeyExist(USERDATA_DATABASE_PREFIX + id).then(exists => {
-                                            if(!exists){
+                                let id = ID.new(ID.IDTypes.User)
+                                // TODO: Check if ID exists
+                                Database.doesKeyExist(USERDATA_DATABASE_PREFIX + id).then(exists => {
+                                    if(!exists){
+                                        InviteCodes.validateInviteCode(inviteCode, serverConfig.LoadedConfig.SignupRules.RemoveCodeAfterUse).then(allow => {
+                                            if(allow){
                                                 hashPassword(password).then(hashedPassword => {
                                                     let userdata = createUserData(id, username, hashedPassword, email)
                                                     Database.set(USERDATA_DATABASE_PREFIX + id, userdata).then(reply => {
@@ -263,19 +264,19 @@ exports.createUser = function (username, password, email, inviteCode) {
                                                     reject(err)
                                                 })
                                             }
-                                            else
-                                                reject(new Error("The rarest error ever"))
+                                            else{
+                                                Logger.Error("Cannot create user " + username + " because they provided an invalid inviteCode!")
+                                                reject(new Error("Invalid Invite Code"))
+                                            }
                                         }).catch(err => {
-                                            Logger.Error("Failed to check for existing Id")
+                                            Logger.Error("Unknown error when validating invite code for user " + username + " with error " + err)
                                             reject(err)
                                         })
                                     }
-                                    else{
-                                        Logger.Error("Cannot create user " + username + " because they provided an invalid inviteCode!")
-                                        reject(new Error("Invalid Invite Code"))
-                                    }
+                                    else
+                                        reject(new Error("The rarest error ever"))
                                 }).catch(err => {
-                                    Logger.Error("Unknown error when validating invite code for user " + username + " with error " + err)
+                                    Logger.Error("Failed to check for existing Id")
                                     reject(err)
                                 })
                             }
