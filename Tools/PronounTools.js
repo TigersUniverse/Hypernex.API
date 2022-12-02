@@ -5,8 +5,7 @@ exports.Pronouns = {
         AccusativeCase: "Him",
         ReflexivePronoun: "Himself",
         IndependentGenitiveCase: "His",
-        DependentGenitiveCase: "His",
-        DisplayThree: false
+        DependentGenitiveCase: "His"
     },
     SheHerHers: {
         Id: 1,
@@ -14,29 +13,25 @@ exports.Pronouns = {
         AccusativeCase: "Her",
         ReflexivePronoun: "Herself",
         IndependentGenitiveCase: "Hers",
-        DependentGenitiveCase: "Her",
-        DisplayThree: false
+        DependentGenitiveCase: "Her"
     },
     TheyThemTheirs: {
         Id: 2,
         NominativeCase: "They",
         AccusativeCase: "Them",
-        ReflexivePronoun: "Themselves",
-        DisplayThree: false
+        ReflexivePronoun: "Themselves"
     },
     ItIts: {
         Id: 3,
         NominativeCase: "It",
         AccusativeCase: "It",
         ReflexivePronoun: "Itself",
-        DependentGenitiveCase: "Its",
-        DisplayThree: false
+        DependentGenitiveCase: "Its"
     },
     AnyAnyAny: {
         Id: 4,
         NominativeCase: "Any",
-        AccusativeCase: "Any",
-        DisplayThree: false
+        AccusativeCase: "Any"
     },
     // Sorry if some of these neopronouns are wrong, please fix if they are
     ZeZirZirs: {
@@ -44,90 +39,78 @@ exports.Pronouns = {
         NominativeCase: "Ze",
         AccusativeCase: "Zir",
         ReflexivePronoun: "Zirself",
-        IndependentGenitiveCase: "Zirs",
-        DisplayThree: true
+        IndependentGenitiveCase: "Zirs"
     },
     ZeHirHirs: {
         Id: 6,
         NominativeCase: "Ze",
         AccusativeCase: "Hir",
         ReflexivePronoun: "Hirself",
-        IndependentGenitiveCase: "Hirs",
-        DisplayThree: true
+        IndependentGenitiveCase: "Hirs"
     },
     XeXemXyrs: {
         Id: 7,
         NominativeCase: "Xe",
         AccusativeCase: "Xem",
         ReflexivePronoun: "Xyrself",
-        IndependentGenitiveCase: "Xyrs",
-        DisplayThree: true
+        IndependentGenitiveCase: "Xyrs"
     },
     EyEmEirs: {
         Id: 8,
         NominativeCase: "Ey",
         AccusativeCase: "Em",
         ReflexivePronoun: "Eirself",
-        IndependentGenitiveCase: "Eirs",
-        DisplayThree: true
+        IndependentGenitiveCase: "Eirs"
     },
     FaeFaerFaers: {
         Id: 9,
         NominativeCase: "Fae",
         AccusativeCase: "Faer",
         ReflexivePronoun: "Faerself",
-        IndependentGenitiveCase: "Faers",
-        DisplayThree: true
+        IndependentGenitiveCase: "Faers"
     },
     EEmEms: {
         Id: 10,
         NominativeCase: "Em",
         AccusativeCase: "Eir",
         ReflexivePronoun: "Eirself",
-        IndependentGenitiveCase: "Eirs",
-        DisplayThree: true
+        IndependentGenitiveCase: "Eirs"
     },
     VeVerVis: {
         Id: 11,
         NominativeCase: "Ve",
         AccusativeCase: "Ver",
         ReflexivePronoun: "Verself",
-        IndependentGenitiveCase: "Vis",
-        DisplayThree: true
+        IndependentGenitiveCase: "Vis"
     },
     NeNemNir: {
         Id: 12,
         NominativeCase: "Ne",
         AccusativeCase: "Nem",
         ReflexivePronoun: "Nemself",
-        IndependentGenitiveCase: "Nirs",
-        DisplayThree: true
+        IndependentGenitiveCase: "Nirs"
     },
     PerPerPers: {
         Id: 13,
         NominativeCase: "Per",
         AccusativeCase: "Pers",
         ReflexivePronoun: "Perself",
-        IndependentGenitiveCase: "Pers",
-        DisplayThree: true
+        IndependentGenitiveCase: "Pers"
     },
     Other: {
         Id: -1,
         NominativeCase: "Other",
-        AccusativeCase: "Other",
-        DisplayThree: false
+        AccusativeCase: "Other"
     },
     Ask: {
         Id: -2,
         NominativeCase: "Ask",
-        AccusativeCase: "Ask",
-        DisplayThree: false
+        AccusativeCase: "Ask"
     },
     Avoid: {
         Id: -3,
         NominativeCase: "Avoid",
-        AccusativeCase: "Avoid",
-        DisplayThree: false
+        AccusativeCase: "Avoid"
     }
 }
 
@@ -172,40 +155,70 @@ exports.getPronounGroupById = function (id) {
     }
 }
 
-exports.createPronouns = function (nominativeId, accusativeId, reflexiveId, independentId, dependentId) {
+exports.isValidCaseId = function (caseid) {
+    if(Number.isNaN(caseid))
+        return false
+    return caseid >= 0 && caseid <= 4
+}
+
+exports.getCaseById = function (caseid) {
+    switch (caseid) {
+        case 0:
+            return exports.Cases.NominativeCase
+        case 1:
+            return exports.Cases.AccusativeCase
+        case 2:
+            return exports.Cases.ReflexivePronoun
+        case 3:
+            return exports.Cases.IndependentGenitiveCase
+        case 4:
+            return exports.Cases.DependentGenitiveCase
+        default:
+            return -1
+    }
+}
+
+exports.createPronouns = function (nominativeId, accusativeId, reflexiveId, independentId, dependentId, displayThree, firstCase, secondCase, thirdCase) {
     let pronouns = {
-        NominativeCase: undefined,
-        AccusativeCase: undefined,
+        NominativeCase: exports.getPronounGroupById(nominativeId).NominativeCase,
+        AccusativeCase: exports.getPronounGroupById(accusativeId).AccusativeCase,
         ReflexivePronoun: undefined,
         IndependentGenitiveCase: undefined,
         DependentGenitiveCase: undefined,
         Action: false,
-        DisplayThree: false
+        DisplayThree: !!displayThree,
+        Display:[
+            exports.Cases.NominativeCase,
+            exports.Cases.AccusativeCase,
+            exports.Cases.ReflexivePronoun
+        ]
     }
-    if(nominativeId < 0){
-        let action = exports.getPronounGroupById(nominativeId).NominativeCase
-        pronouns.NominativeCase = action
-        pronouns.AccusativeCase = action
-        pronouns.ReflexivePronoun = action
-        pronouns.IndependentGenitiveCase = action
-        pronouns.DependentGenitiveCase = action
-        pronouns.Action = true
-    }
-    else{
-        pronouns.NominativeCase = exports.getPronounGroupById(nominativeId).NominativeCase
-        pronouns.AccusativeCase = exports.getPronounGroupById(accusativeId).AccusativeCase
-        let r = exports.getPronounGroupById(reflexiveId).ReflexivePronoun
-        if(r)
-            pronouns.ReflexivePronoun = r
-        let i = exports.getPronounGroupById(independentId).IndependentGenitiveCase
-        if(i)
-            pronouns.IndependentGenitiveCase = i
-        let d = exports.getPronounGroupById(dependentId)
-        if(d.DependentGenitiveCase){
-            pronouns.DependentGenitiveCase = d.DependentGenitiveCase
-            if (d.DisplayThree)
-                pronouns.DisplayThree = true
-        }
+    let rp = exports.getPronounGroupById(reflexiveId)
+    if(rp)
+        pronouns.ReflexivePronoun = rp.ReflexivePronoun
+    let igc = exports.getPronounGroupById(independentId)
+    if(igc)
+        pronouns.IndependentGenitiveCase = igc.IndependentGenitiveCase
+    let dgc = exports.getPronounGroupById(dependentId)
+    if(dgc)
+        pronouns.DependentGenitiveCase = dgc.DependentGenitiveCase
+    if(!!displayThree){
+        // TODO: Set Display Array
+        if(exports.isValidCaseId(firstCase))
+            pronouns.Display[0] = exports.getCaseById(firstCase)
+        if(exports.isValidCaseId(secondCase))
+            pronouns.Display[1] = exports.getCaseById(secondCase)
+        if(displayThree)
+            if(exports.isValidCaseId(thirdCase))
+                pronouns.Display[2] = exports.getCaseById(thirdCase)
     }
     return pronouns
+}
+
+exports.Cases = {
+    NominativeCase: 0,
+    AccusativeCase: 1,
+    ReflexivePronoun: 2,
+    IndependentGenitiveCase: 3,
+    DependentGenitiveCase: 4
 }

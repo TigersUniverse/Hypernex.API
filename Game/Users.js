@@ -623,11 +623,11 @@ exports.Login = function (app, username, password, twofacode){
     })
 }
 
-exports.sendVerifyEmail = function (username, tokenContent) {
+exports.sendVerifyEmail = function (userid, tokenContent) {
     return new Promise(exec => {
-        exports.isUserTokenValid(username, tokenContent).then(validToken => {
+        exports.isUserIdTokenValid(userid, tokenContent).then(validToken => {
             if(validToken){
-                exports.getUserDataFromUsername(username).then(userdata => {
+                exports.getUserDataFromUsername(userid).then(userdata => {
                     if(userdata){
                         if(!userdata.isEmailVerified){
                             Emailing.sendVerificationEmailToUser(userdata).then(t => {
@@ -658,38 +658,44 @@ exports.sendVerifyEmail = function (username, tokenContent) {
     })
 }
 
-exports.verifyEmailToken = function (userid, tokenContent) {
+exports.verifyEmailToken = function (userid, tokenContent, emailToken) {
     return new Promise(exec => {
-        exports.getUserDataFromUserId(userid).then(userdata => {
-            if(userdata){
-                if(!userdata.isEmailVerified && userdata.emailVerificationToken !== "" &&
-                    userdata.emailVerificationToken === tokenContent){
-                    let nud = userdata
-                    nud.isEmailVerified = true
-                    nud.emailVerificationToken = ""
-                    if(userdata.Rank === exports.Rank.Incompleter)
-                        nud.Rank = exports.Rank.Registered
-                    setUserData(nud).then(r => {
-                        if(r)
-                            exec(true)
+        exports.isUserIdTokenValid(userid, tokenContent).then(validToken => {
+            if(validToken){
+                exports.getUserDataFromUserId(userid).then(userdata => {
+                    if(userdata){
+                        if(!userdata.isEmailVerified && userdata.emailVerificationToken !== "" &&
+                            userdata.emailVerificationToken === emailToken){
+                            let nud = userdata
+                            nud.isEmailVerified = true
+                            nud.emailVerificationToken = ""
+                            if(userdata.Rank === exports.Rank.Incompleter)
+                                nud.Rank = exports.Rank.Registered
+                            setUserData(nud).then(r => {
+                                if(r)
+                                    exec(true)
+                                else
+                                    exec(false)
+                            }).catch(() => exec(false))
+                        }
                         else
                             exec(false)
-                    }).catch(() => exec(false))
-                }
-                else
-                    exec(false)
+                    }
+                    else
+                        exec(false)
+                }).catch(() => exec(false))
             }
             else
                 exec(false)
-        }).catch(() => exec(false))
+        })
     })
 }
 
-exports.changeEmail = function (username, tokenContent, newEmail) {
+exports.changeEmail = function (userid, tokenContent, newEmail) {
     return new Promise((exec, reject) => {
-        exports.isUserTokenValid(username, tokenContent).then(validToken => {
+        exports.isUserIdTokenValid(userid, tokenContent).then(validToken => {
             if(validToken){
-                exports.getUserDataFromUsername(username).then(userdata => {
+                exports.getUserDataFromUserId(userid).then(userdata => {
                     if(userdata){
                         if(Emailing.isValidEmail(newEmail)){
                             exports.getUserDataFromEmail(newEmail).then(r => {
@@ -702,9 +708,23 @@ exports.changeEmail = function (username, tokenContent, newEmail) {
                                     nud.Email = newEmail
                                     if(nud.Rank < exports.Rank.Verified)
                                         nud.Rank = exports.Rank.Incompleter
-                                    setUserData(nud).then(rr => {
-                                        if(rr)
-                                            exec(true)
+                                    Database.delete(EMAIL_TO_USERID_PREFIX + userdata.Email).then(er => {
+                                        if(er){
+                                            Database.set(EMAIL_TO_USERID_PREFIX + newEmail.toLowerCase(), {
+                                                Id: userdata.Id
+                                            }).then(ser => {
+                                                if(ser){
+                                                    setUserData(nud).then(rr => {
+                                                        if(rr)
+                                                            exec(true)
+                                                        else
+                                                            exec(false)
+                                                    }).catch(err => exec(false))
+                                                }
+                                                else
+                                                    exec(false)
+                                            }).catch(err => exec(false))
+                                        }
                                         else
                                             exec(false)
                                     }).catch(err => exec(false))
@@ -725,11 +745,11 @@ exports.changeEmail = function (username, tokenContent, newEmail) {
 }
 
 // Returns the otpauth_url for the client to verify
-exports.enable2fa = function (username, tokenContent) {
+exports.enable2fa = function (userid, tokenContent) {
     return new Promise((exec, reject) => {
-        exports.isUserTokenValid(username, tokenContent).then(validToken => {
+        exports.isUserIdTokenValid(userid, tokenContent).then(validToken => {
             if(validToken){
-                exports.getUserDataFromUsername(username).then(userdata => {
+                exports.getUserDataFromUserId(userid).then(userdata => {
                     if(userdata){
                         if(!userdata.is2FAVerified){
                             let nud = userdata
@@ -753,11 +773,11 @@ exports.enable2fa = function (username, tokenContent) {
     })
 }
 
-exports.verify2fa = function (username, tokenContent, code) {
+exports.verify2fa = function (userid, tokenContent, code) {
     return new Promise(exec => {
-        exports.isUserTokenValid(username, tokenContent).then(validToken => {
+        exports.isUserIdTokenValid(userid, tokenContent).then(validToken => {
             if(validToken){
-                exports.getUserDataFromUsername(username).then(userdata => {
+                exports.getUserDataFromUserId(userid).then(userdata => {
                     if(userdata){
                         if(OTP.verify2faOPT(userdata, code)){
                             if(!userdata.is2FAVerified){
@@ -779,11 +799,11 @@ exports.verify2fa = function (username, tokenContent, code) {
     })
 }
 
-exports.remove2fa = function (username, tokenContent) {
+exports.remove2fa = function (userid, tokenContent) {
     return new Promise(exec => {
-        exports.isUserTokenValid(username, tokenContent).then(validToken => {
+        exports.isUserIdTokenValid(userid, tokenContent).then(validToken => {
             if(validToken){
-                exports.getUserDataFromUsername(username).then(userdata => {
+                exports.getUserDataFromUsername(userid).then(userdata => {
                     if(userdata){
                         let nud = userdata
                         nud.is2FAVerified = false
@@ -880,6 +900,15 @@ function isValidBio(bio){
                 proav = false
             if(!PronounTools.isValidPronounId(bio.Pronouns.dependentId))
                 proav = false
+            if(typeof bio.Pronouns.Display !== 'boolean')
+                proav = false
+            if(!PronounTools.isValidCaseId(bio.Pronouns.firstCase))
+                proav = false
+            if(!PronounTools.isValidCaseId(bio.Pronouns.secondCase))
+                proav = false
+            if(!PronounTools.isValidCaseId(bio.Pronouns.thirdCase))
+                if(bio.Pronouns.DisplayThree)
+                    proav = false
         }
         return pav && statusValid && descriptionValid && pfpURLValid && bannerURLValid && displayNameValid && proav
     }
@@ -888,13 +917,13 @@ function isValidBio(bio){
     }
 }
 
-exports.updateBio = function (username, tokenContent, bio){
+exports.updateBio = function (userid, tokenContent, bio){
     return new Promise((exec, reject) => {
-        exports.isUserTokenValid(username, tokenContent).then(r => {
+        exports.isUserIdTokenValid(userid, tokenContent).then(r => {
             if(r){
                 // verify bio
                 if(isValidBio(bio)){
-                    exports.getUserDataFromUsername(username).then(userdata => {
+                    exports.getUserDataFromUserId(userid).then(userdata => {
                         // Should I inline?
                         let nud = userdata
                         nud.Bio = {
@@ -908,7 +937,8 @@ exports.updateBio = function (username, tokenContent, bio){
                         if(bio.Pronouns){
                             let pronouns = PronounTools.createPronouns(bio.Pronouns.nominativeId,
                                 bio.Pronouns.accusativeId, bio.Pronouns.reflexiveId, bio.Pronouns.independentId,
-                                bio.Pronouns.dependentId)
+                                bio.Pronouns.dependentId, bio.Pronouns.DisplayThree, bio.Pronouns.firstCase,
+                                bio.Pronouns.secondCase, bio.Pronouns.thirdCase)
                             nud.Bio.Pronouns = pronouns
                         }
                         setUserData(nud).then(r => {
@@ -916,7 +946,7 @@ exports.updateBio = function (username, tokenContent, bio){
                                 exec(true)
                             exec(false)
                         }).catch(err => {
-                            Logger.Error("Failed to update bio for user " + username + "! " + err)
+                            Logger.Error("Failed to update bio for user " + userid + "! " + err)
                             reject(err)
                         })
                     })
@@ -928,11 +958,11 @@ exports.updateBio = function (username, tokenContent, bio){
     })
 }
 
-exports.blockUser = function (username, tokenContent, targetUserId) {
+exports.blockUser = function (userid, tokenContent, targetUserId) {
     return new Promise(exec => {
-        exports.isUserTokenValid(username, tokenContent).then(validToken => {
+        exports.isUserIdTokenValid(userid, tokenContent).then(validToken => {
             if(validToken){
-                exports.getUserDataFromUsername(username).then(userdata => {
+                exports.getUserDataFromUserId(userid).then(userdata => {
                     if(userdata){
                         exports.getUserDataFromUserId(targetUserId).then(targetUserData => {
                             if(targetUserData){
@@ -959,11 +989,11 @@ exports.blockUser = function (username, tokenContent, targetUserId) {
     })
 }
 
-exports.unBlockUser = function (username, tokenContent, targetUserId) {
+exports.unBlockUser = function (userid, tokenContent, targetUserId) {
     return new Promise(exec => {
-        exports.isUserTokenValid(username, tokenContent).then(validToken => {
+        exports.isUserIdTokenValid(userid, tokenContent).then(validToken => {
             if(validToken){
-                exports.getUserDataFromUsername(username).then(userdata => {
+                exports.getUserDataFromUserId(userid).then(userdata => {
                     if(userdata){
                         exports.getUserDataFromUserId(targetUserId).then(targetUserData => {
                             if(targetUserData){
@@ -994,11 +1024,11 @@ exports.unBlockUser = function (username, tokenContent, targetUserId) {
 // TODO: Verify that both ways are updated to database
 // Not doing this isn't catastrophic, but can cause issues down the line if not chronologically verified
 
-exports.followUser = function (fromUsername, tokenContent, targetUserId) {
+exports.followUser = function (fromUserId, tokenContent, targetUserId) {
     return new Promise(exec => {
-        exports.isUserTokenValid(fromUsername, tokenContent).then(validToken => {
+        exports.isUserIdTokenValid(fromUserId, tokenContent).then(validToken => {
             if(validToken){
-                exports.getUserDataFromUsername(fromUsername).then(fromUserData => {
+                exports.getUserDataFromUserId(fromUserId).then(fromUserData => {
                     if(fromUserData){
                         exports.getUserDataFromUserId(targetUserId).then(targetUserData => {
                             if(targetUserData){
@@ -1024,11 +1054,11 @@ exports.followUser = function (fromUsername, tokenContent, targetUserId) {
     })
 }
 
-exports.unFollowUser = function (fromUsername, tokenContent, targetUserId) {
+exports.unFollowUser = function (fromUserId, tokenContent, targetUserId) {
     return new Promise(exec => {
-        exports.isUserTokenValid(fromUsername, tokenContent).then(validToken => {
+        exports.isUserIdTokenValid(fromUserId, tokenContent).then(validToken => {
             if(validToken){
-                exports.getUserDataFromUsername(fromUsername).then(fromUserData => {
+                exports.getUserDataFromUserId(fromUserId).then(fromUserData => {
                     if(fromUserData){
                         exports.getUserDataFromUserId(targetUserId).then(targetUserData => {
                             if(targetUserData){
@@ -1056,11 +1086,11 @@ exports.unFollowUser = function (fromUsername, tokenContent, targetUserId) {
     })
 }
 
-exports.sendFriendRequest = function (fromUsername, tokenContent, targetUserId) {
+exports.sendFriendRequest = function (fromUserId, tokenContent, targetUserId) {
     return new Promise(exec => {
-        exports.isUserTokenValid(fromUsername, tokenContent).then(validToken => {
+        exports.isUserIdTokenValid(fromUserId, tokenContent).then(validToken => {
             if(validToken){
-                exports.getUserDataFromUsername(fromUsername).then(fromUserData => {
+                exports.getUserDataFromUserId(fromUserId).then(fromUserData => {
                     if(fromUserData){
                         exports.getUserDataFromUserId(targetUserId).then(targetUserData => {
                             if(targetUserData){
@@ -1085,11 +1115,11 @@ exports.sendFriendRequest = function (fromUsername, tokenContent, targetUserId) 
     })
 }
 
-exports.acceptFriendRequest = function (username, tokenContent, fromUserId) {
+exports.acceptFriendRequest = function (userid, tokenContent, fromUserId) {
     return new Promise(exec => {
-        exports.isUserTokenValid(username, tokenContent).then(validToken => {
+        exports.isUserIdTokenValid(userid, tokenContent).then(validToken => {
             if(validToken){
-                exports.getUserDataFromUsername(username).then(userdata => {
+                exports.getUserDataFromUserId(userid).then(userdata => {
                     if(userdata){
                         exports.getUserDataFromUserId(fromUserId).then(fromUserData => {
                             if(fromUserData){
@@ -1139,11 +1169,11 @@ exports.acceptFriendRequest = function (username, tokenContent, fromUserId) {
     })
 }
 
-exports.declineFriendRequest = function (username, tokenContent, fromUserId) {
+exports.declineFriendRequest = function (userid, tokenContent, fromUserId) {
     return new Promise(exec => {
-        exports.isUserTokenValid(username, tokenContent).then(validToken => {
+        exports.isUserIdTokenValid(userid, tokenContent).then(validToken => {
             if(validToken){
-                exports.getUserDataFromUsername(username).then(userdata => {
+                exports.getUserDataFromUserId(userid).then(userdata => {
                     if(userdata){
                         exports.getUserDataFromUserId(fromUserId).then(fromUserData => {
                             if(fromUserData){
@@ -1177,11 +1207,11 @@ exports.declineFriendRequest = function (username, tokenContent, fromUserId) {
     })
 }
 
-exports.removeFriend = function (username, tokenContent, targetUserId) {
+exports.removeFriend = function (userid, tokenContent, targetUserId) {
     return new Promise(exec => {
-        exports.isUserTokenValid(username, tokenContent).then(validToken => {
+        exports.isUserIdTokenValid(userid, tokenContent).then(validToken => {
             if(validToken){
-                exports.getUserDataFromUsername(username).then(userdata => {
+                exports.getUserDataFromUserId(userid).then(userdata => {
                     if(userdata){
                         exports.getUserDataFromUserId(targetUserId).then(targetUserData => {
                             if(targetUserData){

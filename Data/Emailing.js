@@ -35,7 +35,7 @@ exports.isValidEmail = function (email) {
 }
 
 exports.sendEmail = function (data) {
-    return new Promise((exec, rejeect) => {
+    return new Promise((exec, reject) => {
         mg.messages.create(mailgunURL, data).then(msg => {
             exec(msg)
         }).catch(err => {

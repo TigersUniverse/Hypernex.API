@@ -80,6 +80,14 @@ exports.set = function(key, value){
     })
 }
 
+exports.delete = function (key) {
+    return new Promise((exec, reject) => {
+        client.del(key).then(reply => {
+            exec(!!reply)
+        }).catch(err => reject(err))
+    })
+}
+
 exports.isClientOpen = function (){
     return isClientConnected()
 }

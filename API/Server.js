@@ -44,6 +44,8 @@ exports.initapp = function (usersModule, serverConfig){
     app.use(bodyParser.urlencoded({extended: true}))
     app.use(bodyParser.json())
 
+    // User Information
+
     app.post(getAPIEndpoint() + "createUser", function (req, res) {
         let username = req.body.username
         let password = req.body.password
@@ -211,6 +213,305 @@ exports.initapp = function (usersModule, serverConfig){
             }).catch(err => {
                 Logger.Error("Failed to login from API for reason: " + err)
                 res.end(APIMessage.craftAPIMessage(false, "Failed to login!"))
+            })
+        }
+        else
+            res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+    })
+
+    app.post(getAPIEndpoint() + "isValidToken", function (req, res) {
+        let username = req.body.username
+        let userid = req.body.userid
+        let tokenContent = req.body.tokenContent
+        if(isUserBodyValid(username, "string")){
+            if(isUserBodyValid(tokenContent, "string")){
+                Users.isUserTokenValid(username, tokenContent).then(v => {
+                    res.end(APIMessage.craftAPIMessage(true, "Completed Operation", {
+                        isValidToken: v
+                    }))
+                }).catch(err => {
+                    Logger.Error("Failed to API validate token for reason " + err)
+                })
+            }
+            else
+                res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+        }
+        else if(isUserBodyValid(userid, "string")){
+            if(isUserBodyValid(tokenContent, "string")){
+                Users.isUserIdTokenValid(userid, tokenContent).then(v => {
+                    res.end(APIMessage.craftAPIMessage(true, "Completed Operation", {
+                        isValidToken: v
+                    }))
+                }).catch(err => {
+                    Logger.Error("Failed to API validate token for reason " + err)
+                })
+            }
+            else
+                res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+        }
+        else
+            res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+    })
+
+    // User Modification
+
+    app.post(getAPIEndpoint() + "sendVerificationEmail", function (req, res) {
+        let userid = req.body.userid
+        let tokenContent = req.body.tokenContent
+        if(isUserBodyValid(userid, "string") && isUserBodyValid(tokenContent, "string")){
+            Users.sendVerifyEmail(userid, tokenContent).then(r => {
+                if(r)
+                    res.end(APIMessage.craftAPIMessage(true, "Sent Verification Email!"))
+                else
+                    res.end(APIMessage.craftAPIMessage(false, "Failed to send Verification Email!"))
+            }).catch(err => {
+                Logger.Error("Failed to send Verification Email for reason " + err)
+                res.end(APIMessage.craftAPIMessage(false, "Failed to send Verification Email!"))
+            })
+        }
+        else
+            res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+    })
+
+    app.post(getAPIEndpoint() + "verifyEmailToken", function (req, res) {
+        let userid = req.body.userid
+        let tokenContent = req.body.tokenContent
+        let emailToken = req.body.emailToken
+        if(isUserBodyValid(userid, "string") && isUserBodyValid(tokenContent, "string") && isUserBodyValid(emailToken, "string")){
+            Users.verifyEmailToken(userid, tokenContent, emailToken).then(v => {
+                if(v)
+                    res.end(APIMessage.craftAPIMessage(true, "Verified Email!"))
+                else
+                    res.end(APIMessage.craftAPIMessage(false, "Failed to verify email!"))
+            }).catch(err => {
+                Logger.Error("Failed to verifyEmailToken!")
+                res.end(APIMessage.craftAPIMessage(false, "Failed to verify email!"))
+            })
+        }
+        else
+            res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+    })
+
+    app.post(getAPIEndpoint() + "changeEmail", function (req, res) {
+        let userid = req.body.userid
+        let tokenContent = req.body.tokenContent
+        let newEmail = req.body.newEmail
+        if(isUserBodyValid(userid, "string") && isUserBodyValid(tokenContent, "string") && isUserBodyValid(newEmail, "string")){
+            Users.changeEmail(userid, tokenContent, newEmail).then(r => {
+                if(r)
+                    res.end(APIMessage.craftAPIMessage(true, "Changed email!"))
+                else
+                    res.end(APIMessage.craftAPIMessage(false, "Failed to change email!"))
+            }).catch(err => {
+                Logger.Error("Failed to change email for reason " + err)
+                res.end(APIMessage.craftAPIMessage(false, "Failed to change email!"))
+            })
+        }
+        else
+            res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+    })
+
+    app.post(getAPIEndpoint() + "requestPasswordReset", function (req, res) {
+        let email = req.body.email
+        if(isUserBodyValid(email)){
+            Users.requestPasswordReset(email).then(r => {
+                if(r)
+                    res.end(APIMessage.craftAPIMessage(true, "Sent Password Reset Email to " + email))
+                else
+                    res.end(APIMessage.craftAPIMessage(false, "Failed to send Password Reset Email!"))
+            }).catch(err => {
+                Logger.Error("Failed to request password reset for reason " + err)
+                res.end(APIMessage.craftAPIMessage(false, "Failed to send Password Reset Email!"))
+            })
+        }
+        else
+            res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+    })
+
+    app.post(getAPIEndpoint() + "resetPassword", function (req, res) {
+        let userid = req.body.userid
+        let passwordResetContent = req.body.passwordResetContent
+        let newPassword = req.body.newPassword
+        if(isUserBodyValid(userid, "string") && isUserBodyValid(passwordResetContent, "string")){
+            Users.resetPassword(userid, passwordResetContent, newPassword).then(r => {
+                if(r)
+                    res.end(APIMessage.craftAPIMessage(true, "Reset Password!"))
+                else
+                    res.end(APIMessage.craftAPIMessage(false, "Failed to Reset Password!"))
+            }).catch(err => {
+                Logger.Error("Failed to reset password for reason " + err)
+                res.end(APIMessage.craftAPIMessage(false, "Failed to send Reset Password!"))
+            })
+        }
+        else
+            res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+    })
+
+    app.post(getAPIEndpoint() + "updateBio", function (req, res) {
+        let userid = req.body.userid
+        let tokenContent = req.body.tokenContent
+        let bio = req.body.bio
+        if(isUserBodyValid(userid, "string") && isUserBodyValid(bio, "string")){
+            Users.updateBio(userid, tokenContent, bio).then(r => {
+                if(r)
+                    res.end(APIMessage.craftAPIMessage(true, "Updated Bio!"))
+                else
+                    res.end(APIMessage.craftAPIMessage(false, "Failed to update bio!"))
+            }).catch(err => {
+                Logger.Error("Failed to update bio for reason " + err)
+                res.end(APIMessage.craftAPIMessage(false, "Failed to update bio!"))
+            })
+        }
+        else
+            res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+    })
+
+    app.post(getAPIEndpoint() + "blockUser", function (req, res) {
+        let userid = req.body.userid
+        let tokenContent = req.body.tokenContent
+        let targetUserId = req.body.targetUserId
+        if(isUserBodyValid(userid, "string") && isUserBodyValid(tokenContent, "string") && isUserBodyValid(targetUserId, "string")){
+            Users.blockUser(userid, tokenContent, targetUserId).then(r => {
+                if(r)
+                    res.end(APIMessage.craftAPIMessage(true, "Blocked User!"))
+                else
+                    res.end(APIMessage.craftAPIMessage(false, "Failed to block user!"))
+            }).catch(err => {
+                Logger.Error("Failed to block user for reason " + err)
+                res.end(APIMessage.craftAPIMessage(false, "Failed to block user!"))
+            })
+        }
+        else
+            res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+    })
+
+    app.post(getAPIEndpoint() + "unblockUser", function (req, res) {
+        let userid = req.body.userid
+        let tokenContent = req.body.tokenContent
+        let targetUserId = req.body.targetUserId
+        if(isUserBodyValid(userid, "string") && isUserBodyValid(tokenContent, "string") && isUserBodyValid(targetUserId, "string")){
+            Users.unBlockUser(userid, tokenContent, targetUserId).then(r => {
+                if(r)
+                    res.end(APIMessage.craftAPIMessage(true, "Unblocked User!"))
+                else
+                    res.end(APIMessage.craftAPIMessage(false, "Failed to unblock user!"))
+            }).catch(err => {
+                Logger.Error("Failed to unblock user for reason " + err)
+                res.end(APIMessage.craftAPIMessage(false, "Failed to unblock user!"))
+            })
+        }
+        else
+            res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+    })
+
+    app.post(getAPIEndpoint() + "followUser", function (req, res) {
+        let userid = req.body.userid
+        let tokenContent = req.body.tokenContent
+        let targetUserId = req.body.targetUserId
+        if(isUserBodyValid(userid, "string") && isUserBodyValid(tokenContent, "string") && isUserBodyValid(targetUserId, "string")){
+            Users.followUser(userid, tokenContent, targetUserId).then(r => {
+                if(r)
+                    res.end(APIMessage.craftAPIMessage(true, "Followed User!"))
+                else
+                    res.end(APIMessage.craftAPIMessage(false, "Failed to follow user!"))
+            }).catch(err => {
+                Logger.Error("Failed to follow user for reason " + err)
+                res.end(APIMessage.craftAPIMessage(false, "Failed to follow user!"))
+            })
+        }
+        else
+            res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+    })
+
+    app.post(getAPIEndpoint() + "unfollowUser", function (req, res) {
+        let userid = req.body.userid
+        let tokenContent = req.body.tokenContent
+        let targetUserId = req.body.targetUserId
+        if(isUserBodyValid(userid, "string") && isUserBodyValid(tokenContent, "string") && isUserBodyValid(targetUserId, "string")){
+            Users.unFollowUser(userid, tokenContent, targetUserId).then(r => {
+                if(r)
+                    res.end(APIMessage.craftAPIMessage(true, "Unfollowed User!"))
+                else
+                    res.end(APIMessage.craftAPIMessage(false, "Failed to unfollow user!"))
+            }).catch(err => {
+                Logger.Error("Failed to unfollow user for reason " + err)
+                res.end(APIMessage.craftAPIMessage(false, "Failed to unfollow user!"))
+            })
+        }
+        else
+            res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+    })
+
+    app.post(getAPIEndpoint() + "sendFriendRequest", function (req, res) {
+        let userid = req.body.userid
+        let tokenContent = req.body.tokenContent
+        let targetUserId = req.body.targetUserId
+        if(isUserBodyValid(userid, "string") && isUserBodyValid(tokenContent, "string") && isUserBodyValid(targetUserId, "string")){
+            Users.sendFriendRequest(userid, tokenContent, targetUserId).then(r => {
+                if(r)
+                    res.end(APIMessage.craftAPIMessage(true, "Sent friend request!"))
+                else
+                    res.end(APIMessage.craftAPIMessage(false, "Failed to send friend request!"))
+            }).catch(err => {
+                Logger.Error("Failed to send friend request for reason " + err)
+                res.end(APIMessage.craftAPIMessage(false, "Failed to send friend request!"))
+            })
+        }
+        else
+            res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+    })
+
+    app.post(getAPIEndpoint() + "acceptFriendRequest", function (req, res) {
+        let userid = req.body.userid
+        let tokenContent = req.body.tokenContent
+        let targetUserId = req.body.targetUserId
+        if(isUserBodyValid(userid, "string") && isUserBodyValid(tokenContent, "string") && isUserBodyValid(targetUserId, "string")){
+            Users.acceptFriendRequest(userid, tokenContent, targetUserId).then(r => {
+                if(r)
+                    res.end(APIMessage.craftAPIMessage(true, "Accepted friend request!"))
+                else
+                    res.end(APIMessage.craftAPIMessage(false, "Failed to accept friend request!"))
+            }).catch(err => {
+                Logger.Error("Failed to accept friend request for reason " + err)
+                res.end(APIMessage.craftAPIMessage(false, "Failed to accept friend request!"))
+            })
+        }
+        else
+            res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+    })
+
+    app.post(getAPIEndpoint() + "declineFriendRequest", function (req, res) {
+        let userid = req.body.userid
+        let tokenContent = req.body.tokenContent
+        let targetUserId = req.body.targetUserId
+        if(isUserBodyValid(userid, "string") && isUserBodyValid(tokenContent, "string") && isUserBodyValid(targetUserId, "string")){
+            Users.declineFriendRequest(userid, tokenContent, targetUserId).then(r => {
+                if(r)
+                    res.end(APIMessage.craftAPIMessage(true, "Declined friend request!"))
+                else
+                    res.end(APIMessage.craftAPIMessage(false, "Failed to decline friend request!"))
+            }).catch(err => {
+                Logger.Error("Failed to decline friend request for reason " + err)
+                res.end(APIMessage.craftAPIMessage(false, "Failed to decline friend request!"))
+            })
+        }
+        else
+            res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+    })
+
+    app.post(getAPIEndpoint() + "removeFriend", function (req, res) {
+        let userid = req.body.userid
+        let tokenContent = req.body.tokenContent
+        let targetUserId = req.body.targetUserId
+        if(isUserBodyValid(userid, "string") && isUserBodyValid(tokenContent, "string") && isUserBodyValid(targetUserId, "string")){
+            Users.removeFriend(userid, tokenContent, targetUserId).then(r => {
+                if(r)
+                    res.end(APIMessage.craftAPIMessage(true, "Removed friend!"))
+                else
+                    res.end(APIMessage.craftAPIMessage(false, "Failed to remove friend!"))
+            }).catch(err => {
+                Logger.Error("Failed to remove friend for reason " + err)
+                res.end(APIMessage.craftAPIMessage(false, "Failed to remove friend!"))
             })
         }
         else
