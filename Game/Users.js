@@ -529,6 +529,37 @@ exports.isUserTokenValid = function (username, tokenContent) {
     })
 }
 
+exports.invalidateToken = function (userid, tokenContent) {
+    return new Promise((exec, reject) => {
+        exports.getUserDataFromUserId(userid).then(userdata => {
+            if(userdata){
+                let v = false
+                let NewTokens = userdata.AccountTokens
+                for (let tokenIndex = 0; tokenIndex < userdata.AccountTokens.length; tokenIndex++){
+                    let token = userdata.AccountTokens[tokenIndex]
+                    if(token.content === tokenContent){
+                        NewTokens = ArrayTools.customFilterArray(userdata.AccountTokens,
+                            item => item.content !== token.content)
+                        v = true
+                    }
+                }
+                if(userdata.AccountTokens.length !== NewTokens.length){
+                    let nud = userdata
+                    nud.AccountTokens = NewTokens
+                    setUserData(nud).then(() => exec(v))
+                }
+                else
+                    exec(v)
+            }
+            else
+                reject(new Error("Failed to get UserData for Username " + username))
+        }).catch(err => {
+            // Probably just couldn't find the user, bugged client?
+            exec(false)
+        })
+    })
+}
+
 // This is where functions that require a token go
 
 /*

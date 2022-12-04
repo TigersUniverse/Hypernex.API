@@ -219,6 +219,24 @@ exports.initapp = function (usersModule, serverConfig){
             res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
     })
 
+    app.post(getAPIEndpoint() + "logout", function (req, res) {
+        let userid = req.body.userid
+        let tokenContent = req.body.tokenContent
+        if(isUserBodyValid(userid) && isUserBodyValid(tokenContent)){
+            Users.invalidateToken(userid, tokenContent).then(r => {
+                if(r)
+                    res.end(APIMessage.craftAPIMessage(true, "Logged out!"))
+                else
+                    res.end(APIMessage.craftAPIMessage(false, "Could not find a valid userid or token!"))
+            }).catch(err => {
+                Logger.Error("Failed to logout of account for reason " + err)
+                res.end(APIMessage.craftAPIMessage(false, "Failed to logout of account for reason " + err))
+            })
+        }
+        else
+            res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+    })
+
     app.post(getAPIEndpoint() + "isValidToken", function (req, res) {
         let username = req.body.username
         let userid = req.body.userid
