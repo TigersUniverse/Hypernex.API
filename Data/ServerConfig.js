@@ -17,6 +17,12 @@ exports.LoadedConfig = {
             TLSCALocation: ""
         },
     },
+    SpacesInfo: {
+        AccessKeyId: "",
+        SecretAccessKey: "",
+        Region: "nyc3",
+        SpaceName: "hypernex"
+    },
     UseHTTPS: false,
     HTTPSTLS: {
         TLSKeyLocation: "",
