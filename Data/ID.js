@@ -16,7 +16,7 @@ exports.new = function (idtype){
             idprefix = "post_"
             break
         case 4:
-            idprefix = "media_"
+            idprefix = "file_"
             break
         default:
             throw new Error("invalid idprefix!")
@@ -41,5 +41,5 @@ exports.IDTypes = {
     Avatar: 1,
     World: 2,
     Post: 3,
-    Media: 4
+    File: 4
 }

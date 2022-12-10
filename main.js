@@ -4,6 +4,7 @@ const process = require("process")
 const Logger = require("./Logging/Logger.js")
 const InviteCodes = require("./Data/InviteCodes.js")
 const Database = require("./Data/Database.js")
+const FileUploading = require("./Data/FileUploading.js")
 const APIServer = require("./API/Server.js")
 const Users = require("./Game/Users.js")
 const Posts = require("./Social/Social.js")
@@ -48,17 +49,18 @@ Database.connect(ServerConfig.LoadedConfig.DatabaseInfo.DatabaseNumber,
         let u = Users.init(ServerConfig, d, otp)
         Posts.init(u, d)
         InviteCodes.init(d, u, ServerConfig)
-        // API comes last
-        APIServer.initapp(u, ServerConfig)
-
-        let httpServer = APIServer.createServer(80)
-        let httpsServer
-        if(ServerConfig.LoadedConfig.UseHTTPS){
-            httpsServer = APIServer.createServer(443, {
-                key: fs.readFileSync(ServerConfig.LoadedConfig.HTTPSTLS.TLSKeyLocation),
-                cert: fs.readFileSync(ServerConfig.LoadedConfig.HTTPSTLS.TLSCertificateLocation)
-            })
-    }
-})
+        FileUploading.init(ServerConfig, d, u).then(fu => {
+            // API comes last
+            APIServer.initapp(u, ServerConfig, fu)
+            let httpServer = APIServer.createServer(80)
+            let httpsServer
+            if(ServerConfig.LoadedConfig.UseHTTPS) {
+                httpsServer = APIServer.createServer(443, {
+                    key: fs.readFileSync(ServerConfig.LoadedConfig.HTTPSTLS.TLSKeyLocation),
+                    cert: fs.readFileSync(ServerConfig.LoadedConfig.HTTPSTLS.TLSCertificateLocation)
+                })
+            }
+        }).catch(err => throw err)
+    })
 
 process.stdin.resume()

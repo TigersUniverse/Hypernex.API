@@ -23,6 +23,7 @@ exports.LoadedConfig = {
         Region: "nyc3",
         SpaceName: "hypernex"
     },
+    MaxFileSize: 1000,
     UseHTTPS: false,
     HTTPSTLS: {
         TLSKeyLocation: "",

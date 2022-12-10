@@ -1,4 +1,5 @@
 const express = require('express')
+const multer = require("multer")
 const http = require('http')
 const https = require('https')
 const bodyParser = require("body-parser");
@@ -6,11 +7,14 @@ const path = require("path")
 
 const Logger = require("./../Logging/Logger.js")
 const APIMessage = require("./APIMessage.js")
+const {next} = require("cheerio/lib/api/traversing");
 
 const app = express()
+let upload
 
 let ServerConfig
 let Users
+let FileUploading
 
 const API_VERSION = "v1"
 
@@ -28,7 +32,7 @@ function isUserBodyValid(property, targetType){
     return v
 }
 
-exports.initapp = function (usersModule, serverConfig){
+exports.initapp = function (usersModule, serverConfig, fileUploadModule){
     // TODO: Write some app endpoints when other interfaces are ready
     /*
         Note that other classes should implement functions to interpret API requests
@@ -37,7 +41,9 @@ exports.initapp = function (usersModule, serverConfig){
      */
     Users = usersModule
     ServerConfig = serverConfig
+    FileUploading = fileUploadModule
 
+    upload = multer({ limits: { fileSize: ServerConfig.LoadedConfig.MaxFileSize * 1000000 }})
     app.use(express.static(path.resolve(serverConfig.LoadedConfig.WebRoot), {
         extensions: ['html', 'htm']
     }))
@@ -67,8 +73,8 @@ exports.initapp = function (usersModule, serverConfig){
             res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
     })
 
-    app.post(getAPIEndpoint() + "doesUserExist", function (req, res) {
-        let userid = req.body.userid
+    app.get(getAPIEndpoint() + "doesUserExist", function (req, res) {
+        let userid = req.query.userid
         if(isUserBodyValid(userid, 'string')){
             Users.doesUserExist(userid).then(r => {
                 res.end(APIMessage.craftAPIMessage(true, "Completed Search", {
@@ -83,10 +89,10 @@ exports.initapp = function (usersModule, serverConfig){
             res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
     })
 
-    app.post(getAPIEndpoint() + "getUser", function (req, res) {
-        let userid = req.body.userid
-        let username = req.body.username
-        let tokenContent = req.body.tokenContent
+    app.get(getAPIEndpoint() + "getUser", function (req, res) {
+        let userid = req.query.userid
+        let username = req.query.username
+        let tokenContent = req.query.tokenContent
         if(isUserBodyValid(username, 'string')){
             if(isUserBodyValid(tokenContent, 'string')){
                 // Return Private Client if token is valid
@@ -237,10 +243,10 @@ exports.initapp = function (usersModule, serverConfig){
             res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
     })
 
-    app.post(getAPIEndpoint() + "isValidToken", function (req, res) {
-        let username = req.body.username
-        let userid = req.body.userid
-        let tokenContent = req.body.tokenContent
+    app.get(getAPIEndpoint() + "isValidToken", function (req, res) {
+        let username = req.query.username
+        let userid = req.query.userid
+        let tokenContent = req.query.tokenContent
         if(isUserBodyValid(username, "string")){
             if(isUserBodyValid(tokenContent, "string")){
                 Users.isUserTokenValid(username, tokenContent).then(v => {
@@ -534,6 +540,57 @@ exports.initapp = function (usersModule, serverConfig){
         }
         else
             res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+    })
+
+    // File Management
+
+    app.post(getAPIEndpoint() + "upload", upload.single('file'), function (req, res) {
+        let file = req.file
+        let userid = req.body.userid
+        let tokenContent = req.body.tokenContent
+        if(isUserBodyValid(userid, "string") && isUserBodyValid(tokenContent, "string")){
+            Users.isUserIdTokenValid(userid, tokenContent).then(validToken => {
+                if(validToken){
+                    FileUploading.UploadFile(userid, file.filename, file.buffer).then(r => {
+                        if(r)
+                            res.end(APIMessage.craftAPIMessage(true, "Uploaded File!", {
+                                UploadData: r
+                            }))
+                        else
+                            res.end(APIMessage.craftAPIMessage(false, "Failed to upload file!"))
+                    }).catch(err => {
+                        Logger.Error("Failed to upload file for reason " + err)
+                        res.end(APIMessage.craftAPIMessage(false, "Failed to upload file!"))
+                    })
+                }
+                else
+                    res.end(APIMessage.craftAPIMessage(false, "Failed to authenticate user!"))
+            }).catch(err => {
+                Logger.Error("Failed to upload file for reason " + err)
+                res.end(APIMessage.craftAPIMessage(false, "Failed to upload file!"))
+            })
+        }
+        else
+            res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+    })
+
+    app.param("userid", () => next())
+    app.param("fileid", () => next())
+    app.get(getAPIEndpoint() + "file/:userid/:fileid", function (req, res) {
+        let userid = req.params.userid
+        let fileid = req.params.fileid
+        if(isUserBodyValid(userid, "string") && isUserBodyValid(fileid, "string")){
+            FileUploading.getFileById(userid, fileid).then(fileData => {
+                if(fileData){
+                    // TODO: Authentication with WebSocket
+                    res.attachment(fileData.FileMeta.FileName)
+                    res.send(fileData.FileData.Body)
+                }
+            }).catch(err => {
+                Logger.Error("Failed to get file for reason " + err)
+                res.end(APIMessage.craftAPIMessage(false, "Failed to get file!"))
+            })
+        }
     })
 }
 
