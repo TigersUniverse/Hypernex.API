@@ -25,6 +25,8 @@ if(!ServerConfig.LoadedConfig.DatabaseInfo.UseDatabaseTLS)
     Logger.Warning("TLS for Redis is disabled, this should not be done for production!")
 if(!ServerConfig.LoadedConfig.UseHTTPS)
     Logger.Warning("HTTPS is disabled, this should not be done for production!")
+if(ServerConfig.LoadedConfig.TrustAllDomains)
+    Logger.Warning("TrustAllDomains is enabled, this should not be done for production!")
 
 // Database
 let databaseUsername

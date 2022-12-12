@@ -24,6 +24,8 @@ exports.LoadedConfig = {
         SpaceName: "hypernex"
     },
     MaxFileSize: 1000,
+    TrustAllDomains: false,
+    AllowedDomains: ["i.imgur.com"],
     UseHTTPS: false,
     HTTPSTLS: {
         TLSKeyLocation: "",
