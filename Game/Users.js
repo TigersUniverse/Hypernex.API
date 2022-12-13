@@ -55,6 +55,7 @@ function createUserData(id, username, hashedPassword, email){
                 The WebSocket should handle Offline/invisibility
              */
             Status: exports.Status.Online,
+            StatusText: "",
             Description: "",
             PfpURL: "",
             BannerURL: "",
@@ -906,6 +907,9 @@ function isValidBio(bio){
         // User can set Invisible, but not Offline
         if(bio.Status >= 1 && bio.Status <= 6)
             statusValid = true
+        let statusTextValid = false
+        if(typeof bio.StatusText === 'string' || bio.StatusText instanceof String)
+            statusTextValid = true
         let descriptionValid = false
         if(typeof bio.Description === 'string' || bio.Description instanceof String)
             descriptionValid = true
@@ -941,7 +945,7 @@ function isValidBio(bio){
                 if(bio.Pronouns.DisplayThree)
                     proav = false
         }
-        return pav && statusValid && descriptionValid && pfpURLValid && bannerURLValid && displayNameValid && proav
+        return pav && statusValid && statusTextValid && descriptionValid && pfpURLValid && bannerURLValid && displayNameValid && proav
     }
     catch (e) {
         return false
@@ -960,6 +964,7 @@ exports.updateBio = function (userid, tokenContent, bio){
                         nud.Bio = {
                             isPrivateAccount: bio.isPrivateAccount,
                             Status: bio.Status,
+                            StatusText: bio.StatusText,
                             Description: bio.Description,
                             PfpURL: bio.PfpURL,
                             BannerURL: bio.BannerURL,
