@@ -20,13 +20,13 @@ let passwordResetHtml
 
 exports.init = function (ServerConfig){
     mg = mailgun.client({
-        username: ServerConfig.MailGun.Username,
-        key: ServerConfig.MailGun.Key
+        username: ServerConfig.LoadedConfig.MailGun.Username,
+        key: ServerConfig.LoadedConfig.MailGun.Key
     })
-    emailVerificationHtml = fs.readFileSync(ServerConfig.HTMLPaths.EmailVerificationPath, 'utf8')
-    passwordResetHtml = fs.readFileSync(ServerConfig.HTMLPaths.ResetPasswordPath, 'utf8')
-    baseURL = ServerConfig.BaseURL
-    mailgunURL = ServerConfig.MailGun.MailGunURL
+    emailVerificationHtml = fs.readFileSync(ServerConfig.LoadedConfig.HTMLPaths.EmailVerificationPath, 'utf8')
+    passwordResetHtml = fs.readFileSync(ServerConfig.LoadedConfig.HTMLPaths.ResetPasswordPath, 'utf8')
+    baseURL = ServerConfig.LoadedConfig.BaseURL
+    mailgunURL = ServerConfig.LoadedConfig.MailGun.MailGunURL
     Logger.Log("Initialized Mailing!")
 }
 

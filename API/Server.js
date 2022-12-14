@@ -354,18 +354,34 @@ exports.initapp = function (usersModule, serverConfig, fileUploadModule){
 
     app.post(getAPIEndpoint() + "resetPassword", function (req, res) {
         let userid = req.body.userid
+        let tokenContent = req.body.tokenContent
         let passwordResetContent = req.body.passwordResetContent
         let newPassword = req.body.newPassword
-        if(isUserBodyValid(userid, "string") && isUserBodyValid(passwordResetContent, "string")){
-            Users.resetPassword(userid, passwordResetContent, newPassword).then(r => {
-                if(r)
-                    res.end(APIMessage.craftAPIMessage(true, "Reset Password!"))
-                else
-                    res.end(APIMessage.craftAPIMessage(false, "Failed to Reset Password!"))
-            }).catch(err => {
-                Logger.Error("Failed to reset password for reason " + err)
-                res.end(APIMessage.craftAPIMessage(false, "Failed to send Reset Password!"))
-            })
+        if(isUserBodyValid(userid, "string")){
+            if(isUserBodyValid(passwordResetContent, "string")){
+                Users.resetPassword(userid, passwordResetContent, newPassword).then(r => {
+                    if(r)
+                        res.end(APIMessage.craftAPIMessage(true, "Reset Password!"))
+                    else
+                        res.end(APIMessage.craftAPIMessage(false, "Failed to Reset Password!"))
+                }).catch(err => {
+                    Logger.Error("Failed to reset password for reason " + err)
+                    res.end(APIMessage.craftAPIMessage(false, "Failed to send Reset Password!"))
+                })
+            }
+            else if(isUserBodyValid(tokenContent, "string")){
+                Users.resetPasswordWithUserToken(userid, tokenContent, newPassword).then(r => {
+                    if(r)
+                        res.end(APIMessage.craftAPIMessage(true, "Reset Password!"))
+                    else
+                        res.end(APIMessage.craftAPIMessage(false, "Failed to Reset Password!"))
+                }).catch(err => {
+                    Logger.Error("Failed to reset password for reason " + err)
+                    res.end(APIMessage.craftAPIMessage(false, "Failed to send Reset Password!"))
+                })
+            }
+            else
+                res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
         }
         else
             res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))

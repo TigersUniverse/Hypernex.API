@@ -881,6 +881,7 @@ exports.resetPassword = function (userid, passwordResetContent, newPassword) {
                     let nud = userdata
                     hashPassword(newPassword).then(hash => {
                         nud.HashedPassword = hash
+                        nud.AccountTokens = []
                         setUserData(nud).then(r => {
                             if(r)
                                 exec(true)
@@ -895,6 +896,30 @@ exports.resetPassword = function (userid, passwordResetContent, newPassword) {
             else
                 exec(false)
         })
+    })
+}
+
+exports.resetPasswordWithUserToken = function (userid, tokenContent, newPassword) {
+    return new Promise(exec => {
+        exports.isUserIdTokenValid(userid, tokenContent).then(validToken => {
+            if(validToken){
+                exports.getUserDataFromUserId(userid).then(userdata => {
+                    let nud = userdata
+                    hashPassword(newPassword).then(hash => {
+                        nud.HashedPassword = hash
+                        nud.AccountTokens = []
+                        setUserData(nud).then(r => {
+                            if(r)
+                                exec(true)
+                            else
+                                exec(false)
+                        }).catch(() => exec(false))
+                    }).catch(() => exec(false))
+                }).catch(() => exec(false))
+            }
+            else
+                exec(false)
+        }).catch(() => exec(false))
     })
 }
 
