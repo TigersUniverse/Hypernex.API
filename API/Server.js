@@ -335,6 +335,63 @@ exports.initapp = function (usersModule, serverConfig, fileUploadModule){
             res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
     })
 
+    app.post(getAPIEndpoint() + "enable2fa", function (req, res) {
+        let userid = req.body.userid
+        let tokenContent = req.body.tokenContent
+        if(isUserBodyValid(userid, "string") && isUserBodyValid(tokenContent, "string")){
+            Users.enable2fa(userid, tokenContent).then(otpurl => {
+                if(otpurl)
+                    res.end(APIMessage.craftAPIMessage(true, "Enabled 2FA!", {
+                        otpauth_url: otpurl
+                    }))
+                else
+                    res.end(APIMessage.craftAPIMessage(false, "Failed to enable 2FA!"))
+            }).catch(err => {
+                Logger.Error("Failed to enable 2FA for reason " + err)
+                res.end(APIMessage.craftAPIMessage(false, "Failed to enable 2FA!"))
+            })
+        }
+        else
+            res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+    })
+
+    app.post(getAPIEndpoint() + "verify2fa", function (req, res) {
+        let userid = req.body.userid
+        let tokenContent = req.body.tokenContent
+        let code = req.body.code
+        if(isUserBodyValid(userid, "string") && isUserBodyValid(tokenContent, "string") && isUserBodyValid(code, "string")){
+            Users.verify2fa(userid, tokenContent, code).then(valid => {
+                if(valid)
+                    res.end(APIMessage.craftAPIMessage(true, "Verified 2FA!"))
+                else
+                    res.end(APIMessage.craftAPIMessage(false, "Invalid 2FA Code!"))
+            }).catch(err => {
+                Logger.Error("Failed to verify 2FA for reason " + err)
+                res.end(APIMessage.craftAPIMessage(false, "Failed to verify 2FA!"))
+            })
+        }
+        else
+            res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+    })
+
+    app.post(getAPIEndpoint() + "remove2fa", function (req, res) {
+        let userid = req.body.userid
+        let tokenContent = req.body.tokenContent
+        if(isUserBodyValid(userid, "string") && isUserBodyValid(tokenContent, "string")){
+            Users.remove2fa(userid, tokenContent).then(r => {
+                if(r)
+                    res.end(APIMessage.craftAPIMessage(true, "Removed 2FA!"))
+                else
+                    res.end(APIMessage.craftAPIMessage(false, "Failed to remove 2FA Code!"))
+            }).catch(err => {
+                Logger.Error("Failed to remove 2FA for reason " + err)
+                res.end(APIMessage.craftAPIMessage(false, "Failed to remove 2FA Code!"))
+            })
+        }
+        else
+            res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+    })
+
     app.post(getAPIEndpoint() + "requestPasswordReset", function (req, res) {
         let email = req.body.email
         if(isUserBodyValid(email)){

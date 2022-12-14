@@ -794,6 +794,8 @@ exports.enable2fa = function (userid, tokenContent) {
                                     reject(new Error("Failed to create 2FA"))
                             }).catch(err => reject(err))
                         }
+                        else
+                            reject(new Error("2FA already verified!"))
                     }
                     else
                         reject(new Error("Failed to get user from username"))
@@ -822,6 +824,8 @@ exports.verify2fa = function (userid, tokenContent, code) {
                             else
                                 exec(true)
                         }
+                        else
+                            exec(false)
                     }
                     else
                         exec(false)
