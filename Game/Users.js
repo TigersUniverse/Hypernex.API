@@ -1023,6 +1023,25 @@ exports.updateBio = function (userid, tokenContent, bio){
     })
 }
 
+exports.isUserBlocked = function (userid, targetUserId) {
+    return new Promise((exec, reject) => {
+        exports.getUserDataFromUserId(userid).then(userdata => {
+            if(userdata){
+                exports.getUserDataFromUserId(targetUserId).then(targetUserData => {
+                    if(targetUserData){
+                        let i = ArrayTools.find(userdata.BlockedUsers, targetUserData.Id)
+                        exec(i !== undefined)
+                    }
+                    else
+                        exec(false)
+                }).catch(() => exec(false))
+            }
+            else
+                exec(false)
+        }).catch(() => exec(false))
+    })
+}
+
 exports.blockUser = function (userid, tokenContent, targetUserId) {
     return new Promise(exec => {
         exports.isUserIdTokenValid(userid, tokenContent).then(validToken => {
@@ -1033,9 +1052,24 @@ exports.blockUser = function (userid, tokenContent, targetUserId) {
                             if(targetUserData){
                                 let nud = userdata
                                 nud.BlockedUsers.push(targetUserData.Id)
+                                nud.FriendRequests = ArrayTools.filterArray(nud.FriendRequests, targetUserData.Id)
+                                nud.Friends = ArrayTools.filterArray(nud.Friends, targetUserData.Id)
+                                nud.Following = ArrayTools.filterArray(nud.Following, targetUserData.Id)
+                                nud.Followers = ArrayTools.filterArray(nud.Followers, targetUserData.Id)
                                 setUserData(nud).then(r => {
-                                    if(r)
-                                        exec(true)
+                                    if(r){
+                                        let nbud = targetUserData
+                                        nbud.FriendRequests = ArrayTools.filterArray(nbud.FriendRequests, userdata.Id)
+                                        nbud.Friends = ArrayTools.filterArray(nbud.Friends, userdata.Id)
+                                        nbud.Following = ArrayTools.filterArray(nbud.Following, userdata.Id)
+                                        nbud.Followers = ArrayTools.filterArray(nbud.Followers, userdata.Id)
+                                        setUserData(nbud).then(r => {
+                                            if(r)
+                                                exec(true)
+                                            else
+                                                exec(false)
+                                        }).catch(() => exec(false))
+                                    }
                                     else
                                         exec(false)
                                 }).catch(() => exec(false))
@@ -1097,13 +1131,19 @@ exports.followUser = function (fromUserId, tokenContent, targetUserId) {
                     if(fromUserData){
                         exports.getUserDataFromUserId(targetUserId).then(targetUserData => {
                             if(targetUserData){
-                                let nfud = fromUserData
-                                nfud.Following.push(targetUserData.Id)
-                                let ntud = targetUserData
-                                ntud.Followers.push(fromUserData.Id)
-                                setUserData(nfud)
-                                setUserData(ntud)
-                                exec(true)
+                                exports.isUserBlocked(fromUserId, targetUserId).then(isBlocked => {
+                                    if(!isBlocked){
+                                        let nfud = fromUserData
+                                        nfud.Following.push(targetUserData.Id)
+                                        let ntud = targetUserData
+                                        ntud.Followers.push(fromUserData.Id)
+                                        setUserData(nfud)
+                                        setUserData(ntud)
+                                        exec(true)
+                                    }
+                                    else
+                                        exec(false)
+                                }).catch(() => exec(false))
                             }
                             else
                                 exec(false)
@@ -1158,16 +1198,22 @@ exports.sendFriendRequest = function (fromUserId, tokenContent, targetUserId) {
                 exports.getUserDataFromUserId(fromUserId).then(fromUserData => {
                     if(fromUserData){
                         exports.getUserDataFromUserId(targetUserId).then(targetUserData => {
-                            if(targetUserData){
-                                let nfud = fromUserData
-                                nfud.OutgoingFriendRequests.push(targetUserData.Id)
-                                let ntud = targetUserData
-                                ntud.FriendRequests.push(fromUserData.Id)
-                                setUserData(nfud)
-                                setUserData(ntud)
-                            }
-                            else
-                                exec(false)
+                            exports.isUserBlocked(fromUserId, targetUserId).then(isUserBlocked => {
+                                if(!isUserBlocked){
+                                    if(targetUserData){
+                                        let nfud = fromUserData
+                                        nfud.OutgoingFriendRequests.push(targetUserData.Id)
+                                        let ntud = targetUserData
+                                        ntud.FriendRequests.push(fromUserData.Id)
+                                        setUserData(nfud)
+                                        setUserData(ntud)
+                                    }
+                                    else
+                                        exec(false)
+                                }
+                                else
+                                    exec(false)
+                            }).catch(() => exec(false))
                         }).catch(() => exec(false))
                     }
                     else
