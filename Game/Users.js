@@ -1051,7 +1051,8 @@ exports.blockUser = function (userid, tokenContent, targetUserId) {
                         exports.getUserDataFromUserId(targetUserId).then(targetUserData => {
                             if(targetUserData){
                                 let nud = userdata
-                                nud.BlockedUsers.push(targetUserData.Id)
+                                if(!ArrayTools.find(nud.BlockedUsers, targetUserData.Id))
+                                    nud.BlockedUsers.push(targetUserData.Id)
                                 nud.FriendRequests = ArrayTools.filterArray(nud.FriendRequests, targetUserData.Id)
                                 nud.Friends = ArrayTools.filterArray(nud.Friends, targetUserData.Id)
                                 nud.Following = ArrayTools.filterArray(nud.Following, targetUserData.Id)
@@ -1134,9 +1135,11 @@ exports.followUser = function (fromUserId, tokenContent, targetUserId) {
                                 exports.isUserBlocked(fromUserId, targetUserId).then(isBlocked => {
                                     if(!isBlocked){
                                         let nfud = fromUserData
-                                        nfud.Following.push(targetUserData.Id)
+                                        if(!ArrayTools.find(nfud.Following, targetUserData.Id))
+                                            nfud.Following.push(targetUserData.Id)
                                         let ntud = targetUserData
-                                        ntud.Followers.push(fromUserData.Id)
+                                        if(!ArrayTools.find(ntud.BlockedUsers, fromUserData.Id))
+                                            ntud.Followers.push(fromUserData.Id)
                                         setUserData(nfud)
                                         setUserData(ntud)
                                         exec(true)
@@ -1202,9 +1205,11 @@ exports.sendFriendRequest = function (fromUserId, tokenContent, targetUserId) {
                                 if(!isUserBlocked){
                                     if(targetUserData){
                                         let nfud = fromUserData
-                                        nfud.OutgoingFriendRequests.push(targetUserData.Id)
+                                        if(!ArrayTools.find(nfud.OutgoingFriendRequests, targetUserData.Id))
+                                            nfud.OutgoingFriendRequests.push(targetUserData.Id)
                                         let ntud = targetUserData
-                                        ntud.FriendRequests.push(fromUserData.Id)
+                                        if(!ArrayTools.find(ntud.FriendRequests, fromUserData.Id))
+                                            ntud.FriendRequests.push(fromUserData.Id)
                                         setUserData(nfud)
                                         setUserData(ntud)
                                     }
@@ -1240,11 +1245,13 @@ exports.acceptFriendRequest = function (userid, tokenContent, fromUserId) {
                                     let nud = userdata
                                     let newFriendRequests = ArrayTools.filterArray(nud.FriendRequests, fromUserData.Id)
                                     nud.FriendRequests = newFriendRequests
-                                    nud.Friends[nud.Friends] = fromUserData.Id
+                                    if(!ArrayTools.find(nud.Friends, fromUserData.Id))
+                                        nud.Friends.push(fromUserData.Id)
                                     let nfud = fromUserData
                                     let newOutgoingFriends = ArrayTools.filterArray(nfud.OutgoingFriendRequests, userdata.Id)
                                     nfud.OutgoingFriendRequests = newOutgoingFriends
-                                    nfud.Friends[nfud.Friends] = userdata.Id
+                                    if(!ArrayTools.find(nfud.Friends, userdata.Id))
+                                        nfud.Friends.push(userdata.Id)
                                     setUserData(nud)
                                     setUserData(nfud)
                                     exec(true)
