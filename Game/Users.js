@@ -964,7 +964,7 @@ function isValidBio(bio){
                 proav = false
             if(!PronounTools.isValidPronounId(bio.Pronouns.dependentId))
                 proav = false
-            if(typeof bio.Pronouns.Display !== 'boolean')
+            if(typeof bio.Pronouns.DisplayThree !== 'boolean')
                 proav = false
             if(!PronounTools.isValidCaseId(bio.Pronouns.firstCase))
                 proav = false
