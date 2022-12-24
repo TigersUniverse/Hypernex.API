@@ -2,10 +2,6 @@ const path = require("path")
 const streamify = require("streamify")
 const AWS = require("aws-sdk")
 
-const { ServiceBroker } = require("moleculer")
-const { AVService } = require("moleculer-antivirus")
-const antivirus = new AVService()
-
 const ID = require("./ID.js")
 const ArrayTools = require("./../Tools/ArrayTools.js")
 const Logger = require("./../Logging/Logger.js")
@@ -105,12 +101,12 @@ function isUploadTypeValid(uploadType){
 }
 
 // Indexed by the ID.IDTypes
-const ALLOWED_FILE_TYPES = [[], ["hna"], ["hnw"], [], ["jpg", "jpeg", "gif", "png", "mp4"]]
+const ALLOWED_FILE_TYPES = [[".jpg", ".jpeg", ".gif", ".png", ".mp4"], [".hna"], [".hnw"]]
 
 function isValidFileType(fileType, UploadType){
     for(let i = 0; i < ALLOWED_FILE_TYPES[UploadType].length; i++){
         let allowedFileType = ALLOWED_FILE_TYPES[UploadType][i]
-        if("." + allowedFileType === fileType)
+        if(allowedFileType === fileType)
             return allowedFileType
     }
     return false
@@ -118,22 +114,40 @@ function isValidFileType(fileType, UploadType){
 
 function getUploadTypeFromFileExtension(fileExtension){
     switch (fileExtension) {
-        case "hna":
+        case ".hna":
             return exports.UploadType.Avatar
-        case "hnw":
+        case ".hnw":
             return exports.UploadType.World
-        case "jpg":
+        case ".jpg":
             return exports.UploadType.Media
-        case "jpeg":
+        case ".jpeg":
             return exports.UploadType.Media
-        case "gif":
+        case ".gif":
             return exports.UploadType.Media
-        case "png":
+        case ".png":
             return exports.UploadType.Media
-        case "mp4":
+        case ".mp4":
             return exports.UploadType.Media
     }
     return undefined
+}
+
+exports.doesFileIdExist = function (userid, fileId){
+    return new Promise((exec, reject) => {
+        Database.get(UPLOAD_FILE_PREFIX + userid).then(uploadData => {
+            if(uploadData){
+                let ud = false
+                for(let i = 0; i < uploadData.Uploads.length; i++){
+                    let data = uploadData.Uploads[i]
+                    if(data.FileId === fileId)
+                        ud = fileId
+                }
+                exec(!!ud)
+            }
+            else
+                exec(false)
+        }).catch(err => reject(err))
+    })
 }
 
 exports.getFileMetaById = function (userid, fileId) {
@@ -144,7 +158,7 @@ exports.getFileMetaById = function (userid, fileId) {
                 for(let i = 0; i < uploadData.Uploads.length; i++){
                     let data = uploadData.Uploads[i]
                     if(data.FileId === fileId)
-                        ud = fileId
+                        ud = data
                 }
                 exec(ud)
             }
@@ -191,17 +205,17 @@ exports.UploadFile = function (userid, fileName, buffer) {
     return new Promise((exec, reject) => {
         let fileType = path.extname(fileName)
         let uploadType = getUploadTypeFromFileExtension(fileType)
-        if(uploadType && isUploadTypeValid(uploadType)){
+        if(uploadType !== undefined){
             let ft = isValidFileType(fileType, uploadType)
             if(ft){
                 let id = ID.new(ID.IDTypes.File)
-                exports.getFileMetaById(userid, id).then(r => {
+                exports.doesFileIdExist(userid, id).then(r => {
                     if(!r){
-                        const key = userid + "/" + id + "." + ft
+                        const key = userid + "/" + id + ft
                         const data = createFileData(userid, id, key, fileType)
-                        const stream = streamify(buffer)
-                        antivirus.scan(stream).then(scanResult => {
-                            if(!scanResult.infected){
+                        //const stream = streamify(buffer)
+                        //broker.call('antivirus.scan', stream).then(scanResult => {
+                            //if(!scanResult.infected){
                                 s3.upload({
                                     Body: buffer,
                                     Bucket: Config.LoadedConfig.SpacesInfo.SpaceName,
@@ -218,10 +232,10 @@ exports.UploadFile = function (userid, fileName, buffer) {
                                             reject(new Error("Failed to Upload MetaData for File"))
                                     }).catch(uerr => reject(uerr))
                                 })
-                            }
-                            else
-                                reject(new Error("File is infected!"))
-                        })
+                            //}
+                            //else
+                                //reject(new Error("File is infected!"))
+                        //})
                     }
                     else
                         reject(new Error("Id Already Exists!"))

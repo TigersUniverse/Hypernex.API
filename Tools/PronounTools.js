@@ -150,6 +150,12 @@ exports.getPronounGroupById = function (id) {
             return exports.Pronouns.NeNemNir
         case 13:
             return exports.Pronouns.PerPerPers
+        case -1:
+            return exports.Pronouns.Other
+        case -2:
+            return exports.Pronouns.Ask
+        case -3:
+            return exports.Pronouns.Avoid
         default:
             return undefined
     }

@@ -4,6 +4,7 @@ const date = require("date-and-time")
 const Social = require("./../Social/Social.js")
 const ID = require("./../Data/ID.js")
 const InviteCodes = require("./../Data/InviteCodes.js")
+const FileUploading = require("./../Data/FileUploading.js")
 const Logger = require("./../Logging/Logger.js")
 const GenericToken = require("./../Security/GenericToken.js")
 const Emailing = require("./../Data/Emailing.js")
@@ -88,7 +89,10 @@ exports.censorUser = function (userdata){
         Username: userdata.Username,
         Bio: {
             // TODO: Get Status from WebSocket Info
-            Status: exports.Status.Offline,
+            //Status: exports.Status.Offline,
+            // For Testing
+            Status: userdata.Bio.Status,
+            StatusText: userdata.Bio.StatusText,
             Description: userdata.Bio.Description,
             PfpURL: userdata.Bio.PfpURL,
             BannerURL: userdata.Bio.BannerURL,
@@ -233,8 +237,14 @@ exports.createUser = function (username, password, email, inviteCode) {
                                                                                     InviteCodes.initUser(id).then(r => {
                                                                                         if(!r)
                                                                                             reject(new Error("Failed to create invitedata for unknown reason"))
-                                                                                        else
-                                                                                            exec(userdata)
+                                                                                        else{
+                                                                                            FileUploading.initUser(id).then(r => {
+                                                                                                if(r)
+                                                                                                    exec(userdata)
+                                                                                                else
+                                                                                                    reject(new Error("Failed to create FileUploading data for unknown reason"))
+                                                                                            })
+                                                                                        }
                                                                                     })
                                                                                 }
                                                                             }).catch(err => {
@@ -389,7 +399,7 @@ exports.getUserDataFromUserId = function (userid) {
                         exec(userdata)
                     else
                         reject(new Error("userdata for userid " + userid + " was undefined!"))
-                })
+                }).catch(err => reject(err))
             }
             else
                 reject(new Error("User does not exist!"))
@@ -611,7 +621,7 @@ exports.Login = function (app, username, password, twofacode){
                         }
                         else{
                             if(twofacode === undefined || twofacode === "")
-                                exec(exports.LoginResult.Missing2FA)
+                                exec({result: exports.LoginResult.Missing2FA})
                             else if(OTP.verify2faOPT(userdata, twofacode)){
                                 let token = GenericToken.createToken(app)
                                 // Add token to userdata and save
@@ -659,7 +669,7 @@ exports.sendVerifyEmail = function (userid, tokenContent) {
     return new Promise(exec => {
         exports.isUserIdTokenValid(userid, tokenContent).then(validToken => {
             if(validToken){
-                exports.getUserDataFromUsername(userid).then(userdata => {
+                exports.getUserDataFromUserId(userid).then(userdata => {
                     if(userdata){
                         if(!userdata.isEmailVerified){
                             Emailing.sendVerificationEmailToUser(userdata).then(t => {
@@ -730,22 +740,22 @@ exports.changeEmail = function (userid, tokenContent, newEmail) {
                 exports.getUserDataFromUserId(userid).then(userdata => {
                     if(userdata){
                         if(Emailing.isValidEmail(newEmail)){
-                            exports.getUserDataFromEmail(newEmail).then(r => {
+                            exports.isEmailRegistered(newEmail).then(r => {
                                 if(r)
                                     reject(new Error("Email already used!"))
                                 else{
-                                    let nud = userdata
-                                    nud.isEmailVerified = false
-                                    nud.emailVerificationToken = ""
-                                    nud.Email = newEmail
-                                    if(nud.Rank < exports.Rank.Verified)
-                                        nud.Rank = exports.Rank.Incompleter
                                     Database.delete(EMAIL_TO_USERID_PREFIX + userdata.Email).then(er => {
                                         if(er){
                                             Database.set(EMAIL_TO_USERID_PREFIX + newEmail.toLowerCase(), {
                                                 Id: userdata.Id
                                             }).then(ser => {
                                                 if(ser){
+                                                    let nud = userdata
+                                                    nud.isEmailVerified = false
+                                                    nud.emailVerificationToken = ""
+                                                    nud.Email = newEmail
+                                                    if(nud.Rank < exports.Rank.Verified)
+                                                        nud.Rank = exports.Rank.Incompleter
                                                     setUserData(nud).then(rr => {
                                                         if(rr)
                                                             exec(true)
@@ -839,7 +849,7 @@ exports.remove2fa = function (userid, tokenContent) {
     return new Promise(exec => {
         exports.isUserIdTokenValid(userid, tokenContent).then(validToken => {
             if(validToken){
-                exports.getUserDataFromUsername(userid).then(userdata => {
+                exports.getUserDataFromUserId(userid).then(userdata => {
                     if(userdata){
                         let nud = userdata
                         nud.is2FAVerified = false
@@ -863,11 +873,20 @@ exports.requestPasswordReset = function (email) {
     return new Promise(exec => {
         exports.getUserDataFromEmail(email).then(userdata => {
             if(userdata){
-                let resetPasswordToken = ID.newTokenPassword(50)
+                let resetPasswordToken = ID.newSafeURLTokenPassword(50)
                 let nud = userdata
                 nud.passwordResetToken = resetPasswordToken
                 Emailing.sendPasswordResetEmail(userdata, resetPasswordToken).then(r => {
-                    exec(r)
+                    if(r){
+                        setUserData(nud).then(rr => {
+                            if(rr)
+                                exec(r)
+                            else
+                                exec(false)
+                        }).catch(() => exec(false))
+                    }
+                    else
+                        exec(false)
                 }).catch(() => exec(false))
             }
             else
@@ -886,6 +905,7 @@ exports.resetPassword = function (userid, passwordResetContent, newPassword) {
                     hashPassword(newPassword).then(hash => {
                         nud.HashedPassword = hash
                         nud.AccountTokens = []
+                        nud.passwordResetToken = ""
                         setUserData(nud).then(r => {
                             if(r)
                                 exec(true)
@@ -953,7 +973,7 @@ function isValidBio(bio){
             if(bio.DisplayName.length <= MAX_BIO_LENGTH)
                 displayNameValid = true
         let proav = true
-        if(bio.Pronouns !== undefined){
+        if(bio.Pronouns !== undefined && bio.Pronouns !== "remove"){
             if(!PronounTools.isValidPronounId(bio.Pronouns.nominativeId))
                 proav = false
             if(!PronounTools.isValidPronounId(bio.Pronouns.accusativeId))
@@ -966,6 +986,7 @@ function isValidBio(bio){
                 proav = false
             if(typeof bio.Pronouns.DisplayThree !== 'boolean')
                 proav = false
+            /*
             if(!PronounTools.isValidCaseId(bio.Pronouns.firstCase))
                 proav = false
             if(!PronounTools.isValidCaseId(bio.Pronouns.secondCase))
@@ -973,6 +994,7 @@ function isValidBio(bio){
             if(!PronounTools.isValidCaseId(bio.Pronouns.thirdCase))
                 if(bio.Pronouns.DisplayThree)
                     proav = false
+             */
         }
         return pav && statusValid && statusTextValid && descriptionValid && pfpURLValid && bannerURLValid && displayNameValid && proav
     }
@@ -989,6 +1011,9 @@ exports.updateBio = function (userid, tokenContent, bio){
                 if(isValidBio(bio)){
                     exports.getUserDataFromUserId(userid).then(userdata => {
                         // Should I inline?
+                        let savedPronouns
+                        if(userdata.Bio.Pronouns !== undefined)
+                            savedPronouns = JSON.parse(JSON.stringify(userdata.Bio.Pronouns))
                         let nud = userdata
                         nud.Bio = {
                             isPrivateAccount: bio.isPrivateAccount,
@@ -1000,12 +1025,18 @@ exports.updateBio = function (userid, tokenContent, bio){
                             DisplayName: bio.DisplayName
                         }
                         if(bio.Pronouns){
-                            let pronouns = PronounTools.createPronouns(bio.Pronouns.nominativeId,
-                                bio.Pronouns.accusativeId, bio.Pronouns.reflexiveId, bio.Pronouns.independentId,
-                                bio.Pronouns.dependentId, bio.Pronouns.DisplayThree, bio.Pronouns.firstCase,
-                                bio.Pronouns.secondCase, bio.Pronouns.thirdCase)
-                            nud.Bio.Pronouns = pronouns
+                            if(bio.Pronouns === "remove")
+                                nud.Bio.Pronouns = undefined
+                            else{
+                                let pronouns = PronounTools.createPronouns(bio.Pronouns.nominativeId,
+                                    bio.Pronouns.accusativeId, bio.Pronouns.reflexiveId, bio.Pronouns.independentId,
+                                    bio.Pronouns.dependentId, bio.Pronouns.DisplayThree, bio.Pronouns.firstCase,
+                                    bio.Pronouns.secondCase, bio.Pronouns.thirdCase)
+                                nud.Bio.Pronouns = pronouns
+                            }
                         }
+                        else
+                            nud.Bio.Pronouns = savedPronouns
                         setUserData(nud).then(r => {
                             if(r)
                                 exec(true)
@@ -1019,6 +1050,8 @@ exports.updateBio = function (userid, tokenContent, bio){
                 else
                     exec(false)
             }
+            else
+                exec(false)
         })
     })
 }
@@ -1051,7 +1084,7 @@ exports.blockUser = function (userid, tokenContent, targetUserId) {
                         exports.getUserDataFromUserId(targetUserId).then(targetUserData => {
                             if(targetUserData){
                                 let nud = userdata
-                                if(!ArrayTools.find(nud.BlockedUsers, targetUserData.Id))
+                                if(ArrayTools.find(nud.BlockedUsers, targetUserData.Id) === undefined)
                                     nud.BlockedUsers.push(targetUserData.Id)
                                 nud.FriendRequests = ArrayTools.filterArray(nud.FriendRequests, targetUserData.Id)
                                 nud.Friends = ArrayTools.filterArray(nud.Friends, targetUserData.Id)
@@ -1135,10 +1168,10 @@ exports.followUser = function (fromUserId, tokenContent, targetUserId) {
                                 exports.isUserBlocked(fromUserId, targetUserId).then(isBlocked => {
                                     if(!isBlocked){
                                         let nfud = fromUserData
-                                        if(!ArrayTools.find(nfud.Following, targetUserData.Id))
+                                        if(ArrayTools.find(nfud.Following, targetUserData.Id) === undefined)
                                             nfud.Following.push(targetUserData.Id)
                                         let ntud = targetUserData
-                                        if(!ArrayTools.find(ntud.BlockedUsers, fromUserData.Id))
+                                        if(ArrayTools.find(ntud.BlockedUsers, fromUserData.Id) === undefined)
                                             ntud.Followers.push(fromUserData.Id)
                                         setUserData(nfud)
                                         setUserData(ntud)
@@ -1204,14 +1237,19 @@ exports.sendFriendRequest = function (fromUserId, tokenContent, targetUserId) {
                             exports.isUserBlocked(fromUserId, targetUserId).then(isUserBlocked => {
                                 if(!isUserBlocked){
                                     if(targetUserData){
-                                        let nfud = fromUserData
-                                        if(!ArrayTools.find(nfud.OutgoingFriendRequests, targetUserData.Id))
-                                            nfud.OutgoingFriendRequests.push(targetUserData.Id)
-                                        let ntud = targetUserData
-                                        if(!ArrayTools.find(ntud.FriendRequests, fromUserData.Id))
-                                            ntud.FriendRequests.push(fromUserData.Id)
-                                        setUserData(nfud)
-                                        setUserData(ntud)
+                                        if(ArrayTools.find(targetUserData.Friends, fromUserData.Id) === undefined && ArrayTools.find(fromUserData.Friends, targetUserData.Id) === undefined) {
+                                            let nfud = fromUserData
+                                            if (ArrayTools.find(nfud.OutgoingFriendRequests, targetUserData.Id) === undefined)
+                                                nfud.OutgoingFriendRequests.push(targetUserData.Id)
+                                            let ntud = targetUserData
+                                            if (ArrayTools.find(ntud.FriendRequests, fromUserData.Id) === undefined)
+                                                ntud.FriendRequests.push(fromUserData.Id)
+                                            setUserData(nfud)
+                                            setUserData(ntud)
+                                            exec(true)
+                                        }
+                                        else
+                                            exec(false)
                                     }
                                     else
                                         exec(false)
@@ -1245,12 +1283,12 @@ exports.acceptFriendRequest = function (userid, tokenContent, fromUserId) {
                                     let nud = userdata
                                     let newFriendRequests = ArrayTools.filterArray(nud.FriendRequests, fromUserData.Id)
                                     nud.FriendRequests = newFriendRequests
-                                    if(!ArrayTools.find(nud.Friends, fromUserData.Id))
+                                    if(ArrayTools.find(nud.Friends, fromUserData.Id) === undefined)
                                         nud.Friends.push(fromUserData.Id)
                                     let nfud = fromUserData
                                     let newOutgoingFriends = ArrayTools.filterArray(nfud.OutgoingFriendRequests, userdata.Id)
                                     nfud.OutgoingFriendRequests = newOutgoingFriends
-                                    if(!ArrayTools.find(nfud.Friends, userdata.Id))
+                                    if(ArrayTools.find(nfud.Friends, userdata.Id) === undefined)
                                         nfud.Friends.push(userdata.Id)
                                     setUserData(nud)
                                     setUserData(nfud)

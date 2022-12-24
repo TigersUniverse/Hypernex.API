@@ -4,6 +4,7 @@ const process = require("process")
 const Logger = require("./Logging/Logger.js")
 const InviteCodes = require("./Data/InviteCodes.js")
 const Database = require("./Data/Database.js")
+const Emailing = require("./Data/Emailing.js")
 const FileUploading = require("./Data/FileUploading.js")
 const APIServer = require("./API/Server.js")
 const Users = require("./Game/Users.js")
@@ -51,6 +52,7 @@ Database.connect(ServerConfig.LoadedConfig.DatabaseInfo.DatabaseNumber,
         let u = Users.init(ServerConfig, d, otp)
         Posts.init(u, d)
         InviteCodes.init(d, u, ServerConfig)
+        Emailing.init(ServerConfig)
         FileUploading.init(ServerConfig, d, u).then(fu => {
             // API comes last
             APIServer.initapp(u, ServerConfig, fu)
@@ -62,7 +64,7 @@ Database.connect(ServerConfig.LoadedConfig.DatabaseInfo.DatabaseNumber,
                     cert: fs.readFileSync(ServerConfig.LoadedConfig.HTTPSTLS.TLSCertificateLocation)
                 })
             }
-        }).catch(err => throw err)
+        }).catch(err => console.log(err))
     })
 
 process.stdin.resume()

@@ -47,7 +47,7 @@ exports.sendEmail = function (data) {
 exports.sendVerificationEmailToUser = function (userdata) {
     return new Promise(exec => {
         if(!userdata.isEmailVerified && exports.isValidEmail(userdata.Email)){
-            let t = ID.newTokenPassword(25)
+            let t = ID.newSafeURLTokenPassword(25)
             let $ = cheerio.load(emailVerificationHtml)
             $("a").each(function () {
                 let id = $(this).attr("id")
@@ -59,7 +59,7 @@ exports.sendVerificationEmailToUser = function (userdata) {
             const data = {
                 from: 'no-reply <no-reply@' + mailgunURL + '>',
                 to: userdata.Email,
-                subject: userdata.username + ", please Verify your Email!",
+                subject: userdata.Username + ", please Verify your Email!",
                 html: $.html()
             }
             exports.sendEmail(data).then(r => {
@@ -89,7 +89,7 @@ exports.sendPasswordResetEmail = function (userdata, token) {
             const data = {
                 from: 'no-reply <no-reply@' + mailgunURL + '>',
                 to: userdata.Email,
-                subject: userdata.username + ", please Verify your Email!",
+                subject: userdata.Username + ", please Verify your Email!",
                 html: $.html()
             }
             exports.sendEmail(data).then(r => {
