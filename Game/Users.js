@@ -1082,7 +1082,7 @@ exports.blockUser = function (userid, tokenContent, targetUserId) {
                 exports.getUserDataFromUserId(userid).then(userdata => {
                     if(userdata){
                         exports.getUserDataFromUserId(targetUserId).then(targetUserData => {
-                            if(targetUserData){
+                            if(targetUserData && (userdata.Id !== targetUserData.Id)){
                                 let nud = userdata
                                 if(ArrayTools.find(nud.BlockedUsers, targetUserData.Id) === undefined)
                                     nud.BlockedUsers.push(targetUserData.Id)
@@ -1164,7 +1164,7 @@ exports.followUser = function (fromUserId, tokenContent, targetUserId) {
                 exports.getUserDataFromUserId(fromUserId).then(fromUserData => {
                     if(fromUserData){
                         exports.getUserDataFromUserId(targetUserId).then(targetUserData => {
-                            if(targetUserData){
+                            if(targetUserData && (fromUserData.Id !== targetUserData.Id)){
                                 exports.isUserBlocked(fromUserId, targetUserId).then(isBlocked => {
                                     if(!isBlocked){
                                         let nfud = fromUserData
@@ -1236,7 +1236,7 @@ exports.sendFriendRequest = function (fromUserId, tokenContent, targetUserId) {
                         exports.getUserDataFromUserId(targetUserId).then(targetUserData => {
                             exports.isUserBlocked(fromUserId, targetUserId).then(isUserBlocked => {
                                 if(!isUserBlocked){
-                                    if(targetUserData){
+                                    if(targetUserData && (fromUserData.Id !== targetUserData.Id)){
                                         if(ArrayTools.find(targetUserData.Friends, fromUserData.Id) === undefined && ArrayTools.find(fromUserData.Friends, targetUserData.Id) === undefined) {
                                             let nfud = fromUserData
                                             if (ArrayTools.find(nfud.OutgoingFriendRequests, targetUserData.Id) === undefined)
