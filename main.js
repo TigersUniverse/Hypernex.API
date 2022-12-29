@@ -8,11 +8,14 @@ const Emailing = require("./Data/Emailing.js")
 const FileUploading = require("./Data/FileUploading.js")
 const APIServer = require("./API/Server.js")
 const Users = require("./Game/Users.js")
+const Avatars = require("./Game/Avatars.js")
 const Posts = require("./Social/Social.js")
 const OTP = require("./Security/OTP.js")
+const URLTools = require("./Tools/URLTools.js")
 
 // Config
 let ServerConfig = require("./Data/ServerConfig.js").init()
+let ut = URLTools.Init(ServerConfig)
 
 if(!ServerConfig.DoesConfigExist()){
     ServerConfig.SaveConfig()
@@ -49,13 +52,14 @@ Database.connect(ServerConfig.LoadedConfig.DatabaseInfo.DatabaseNumber,
     databaseUsername, databasePassword, databaseTLS).then(d => {
         // Init Modules
         let otp = OTP.init(ServerConfig)
-        let u = Users.init(ServerConfig, d, otp)
+        let u = Users.init(ServerConfig, d, otp, ut)
+        let a = Avatars.init(ServerConfig, u, d, ut)
         Posts.init(u, d)
         InviteCodes.init(d, u, ServerConfig)
         Emailing.init(ServerConfig)
         FileUploading.init(ServerConfig, d, u).then(fu => {
             // API comes last
-            APIServer.initapp(u, ServerConfig, fu)
+            APIServer.initapp(u, ServerConfig, fu, a)
             let httpServer = APIServer.createServer(80)
             let httpsServer
             if(ServerConfig.LoadedConfig.UseHTTPS) {

@@ -16,6 +16,7 @@ const app = express()
 let ServerConfig
 let Users
 let FileUploading
+let Avatars
 
 const API_VERSION = "v1"
 
@@ -33,16 +34,11 @@ function isUserBodyValid(property, targetType){
     return v
 }
 
-exports.initapp = function (usersModule, serverConfig, fileUploadModule){
-    // TODO: Write some app endpoints when other interfaces are ready
-    /*
-        Note that other classes should implement functions to interpret API requests
-        Pass the request parameter to these functions, and the respective modules should
-        implement app extensions themselves
-     */
+exports.initapp = function (usersModule, serverConfig, fileUploadModule, avatarsModule){
     Users = usersModule
     ServerConfig = serverConfig
     FileUploading = fileUploadModule
+    Avatars = avatarsModule
 
     upload = multer({ dest: "uploads/", limits: { fileSize: ServerConfig.LoadedConfig.MaxFileSize * 1000000 } })
     app.use(express.static(path.resolve(serverConfig.LoadedConfig.WebRoot), {
@@ -267,6 +263,7 @@ exports.initapp = function (usersModule, serverConfig, fileUploadModule){
                     }))
                 }).catch(err => {
                     Logger.Error("Failed to API validate token for reason " + err)
+                    res.end(APIMessage.craftAPIMessage(false, "Failed to validate token!"))
                 })
             }
             else
@@ -280,6 +277,7 @@ exports.initapp = function (usersModule, serverConfig, fileUploadModule){
                     }))
                 }).catch(err => {
                     Logger.Error("Failed to API validate token for reason " + err)
+                    res.end(APIMessage.craftAPIMessage(false, "Failed to validate token!"))
                 })
             }
             else
@@ -642,16 +640,49 @@ exports.initapp = function (usersModule, serverConfig, fileUploadModule){
         let file = req.file
         let userid = req.body.userid
         let tokenContent = req.body.tokenContent
+        let avatarMeta = req.body.avatarMeta
         if(isUserBodyValid(userid, "string") && isUserBodyValid(tokenContent, "string")){
             Users.isUserIdTokenValid(userid, tokenContent).then(validToken => {
                 if(validToken){
                     let filebuffer = fs.readFileSync(file.path)
                     FileUploading.UploadFile(userid, file.originalname, filebuffer).then(r => {
                         if(r) {
-                            res.end(APIMessage.craftAPIMessage(true, "Uploaded File!", {
-                                UploadData: r
-                            }))
-                            deleteFile(file.path)
+                            if(avatarMeta !== undefined){
+                                Avatars.handleFileUpload(userid, tokenContent, avatarMeta).then(verifiedAvatarMeta => {
+                                    if(verifiedAvatarMeta !== undefined){
+                                        Users.addAvatar(userid, verifiedAvatarMeta).then(uaar => {
+                                            if(uuar){
+                                                res.end(APIMessage.craftAPIMessage(true, "Uploaded Avatar!", {
+                                                    UploadData: r
+                                                }))
+                                                deleteFile(file.path)
+                                            }
+                                            else{
+                                                res.end(APIMessage.craftAPIMessage(false, "Failed to upload Avatar!"))
+                                                deleteFile(file.path)
+                                            }
+                                        }).catch(err => {
+                                            Logger.Error("Failed to upload avatar for reason " + err)
+                                            res.end(APIMessage.craftAPIMessage(false, "Failed to upload avatar!"))
+                                            deleteFile(file.path)
+                                        })
+                                    }
+                                    else{
+                                        res.end(APIMessage.craftAPIMessage(false, "Failed to upload Avatar!"))
+                                        deleteFile(file.path)
+                                    }
+                                }).catch(err => {
+                                    Logger.Error("Failed to upload avatar for reason " + err)
+                                    res.end(APIMessage.craftAPIMessage(false, "Failed to upload avatar!"))
+                                    deleteFile(file.path)
+                                })
+                            }
+                            else {
+                                res.end(APIMessage.craftAPIMessage(true, "Uploaded File!", {
+                                    UploadData: r
+                                }))
+                                deleteFile(file.path)
+                            }
                         }
                         else {
                             res.end(APIMessage.craftAPIMessage(false, "Failed to upload file!"))

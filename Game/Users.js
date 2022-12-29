@@ -14,19 +14,24 @@ const PronounTools = require("./../Tools/PronounTools.js")
 
 let Database
 let OTP
+let URLTools
 
 const USERDATA_DATABASE_PREFIX = "user/"
-const MAX_BIO_LENGTH = 250
+
+const MAX_DISPLAYNAME_LENGTH = 20
+const MAX_DESCRIPTION_LENGTH = 1000
+const ONLINE_TIMEFRAME = 300
 
 const USERNAME_TO_USERID_PREFIX = "username-userid/"
 const EMAIL_TO_USERID_PREFIX = "email-userid/"
 
 let serverConfig
 
-exports.init = function (ServerConfig, databaseModule, otpModule){
+exports.init = function (ServerConfig, databaseModule, otpModule, urlToolsModule){
     serverConfig = ServerConfig
     Database = databaseModule
     OTP = otpModule
+    URLTools = urlToolsModule
     Logger.Log("Initialized Users!")
     return this
 }
@@ -79,7 +84,9 @@ function createUserData(id, username, hashedPassword, email){
             WarnReason: "",
             WarnDescription: ""
         },
-        WarnCount: 0
+        WarnCount: 0,
+        Avatars: [],
+        Worlds: []
     }
 }
 
@@ -88,10 +95,7 @@ exports.censorUser = function (userdata){
         Id: userdata.Id,
         Username: userdata.Username,
         Bio: {
-            // TODO: Get Status from WebSocket Info
-            //Status: exports.Status.Offline,
-            // For Testing
-            Status: userdata.Bio.Status,
+            Status: exports.Status.Offline,
             StatusText: userdata.Bio.StatusText,
             Description: userdata.Bio.Description,
             PfpURL: userdata.Bio.PfpURL,
@@ -101,6 +105,8 @@ exports.censorUser = function (userdata){
         },
         Rank: userdata.Rank
     }
+    if(DateTools.getUnixTime(new Date()) - userdata.LastPing <= ONLINE_TIMEFRAME && userdata.Bio.Status !== exports.Status.Offline)
+        d.Bio.Status = userdata.Bio.Status
     if(!userdata.Bio.isPrivateAccount){
         d.Following = userdata.Following
         d.Followers = userdata.Followers
@@ -665,6 +671,30 @@ exports.Login = function (app, username, password, twofacode){
     })
 }
 
+exports.PingUser = function (userid, tokenContent) {
+    return new Promise((exec, reject) => {
+        exports.isUserIdTokenValid(userid, tokenContent).then(validToken => {
+            if(validToken){
+                exports.getUserDataFromUserId(userid).then(userdata => {
+                    if(userdata){
+                        userdata.LastPing = DateTools.getUnixTime(new Date())
+                        setUserData(userdata).then(r => {
+                            if(r)
+                                exec(true)
+                            else
+                                exec(false)
+                        }).catch(() => exec(false))
+                    }
+                    else
+                        exec(false)
+                }).catch(() => exec(false))
+            }
+            else
+                exec(false)
+        }).catch(() => exec(false))
+    })
+}
+
 exports.sendVerifyEmail = function (userid, tokenContent) {
     return new Promise(exec => {
         exports.isUserIdTokenValid(userid, tokenContent).then(validToken => {
@@ -961,16 +991,17 @@ function isValidBio(bio){
             statusTextValid = true
         let descriptionValid = false
         if(typeof bio.Description === 'string' || bio.Description instanceof String)
-            descriptionValid = true
+            if(bio.Description.length <= MAX_DESCRIPTION_LENGTH)
+                descriptionValid = true
         let pfpURLValid = false
-        if(typeof bio.PfpURL === 'string' || bio.PfpURL instanceof String)
+        if((typeof bio.PfpURL === 'string' || bio.PfpURL instanceof String) && URLTools.isURLAllowed(bio.PfpURL))
             pfpURLValid = true
         let bannerURLValid = false
-        if(typeof bio.BannerURL === 'string' || bio.BannerURL instanceof String)
+        if((typeof bio.BannerURL === 'string' || bio.BannerURL instanceof String) && URLTools.isURLAllowed(bio.BannerURL))
             bannerURLValid = true
         let displayNameValid = false
         if(typeof bio.DisplayName === 'string' || bio.DisplayName instanceof String)
-            if(bio.DisplayName.length <= MAX_BIO_LENGTH)
+            if(bio.DisplayName.length <= MAX_DISPLAYNAME_LENGTH)
                 displayNameValid = true
         let proav = true
         if(bio.Pronouns !== undefined && bio.Pronouns !== "remove"){
@@ -1381,6 +1412,48 @@ exports.removeFriend = function (userid, tokenContent, targetUserId) {
                                 setUserData(ntud)
                                 exec(true)
                             }
+                            else
+                                exec(false)
+                        }).catch(() => exec(false))
+                    }
+                    else
+                        exec(false)
+                }).catch(() => exec(false))
+            }
+            else
+                exec(false)
+        }).catch(() => exec(false))
+    })
+}
+
+exports.addAvatar = function (userid, avatarMeta) {
+    return new Promise(exec => {
+        exports.getUserDataFromUserId(userid).then(userdata => {
+            if(userdata){
+                userdata.Avatars.push(avatarMeta)
+                setUserData(userdata).then(r => {
+                    if(r)
+                        exec(true)
+                    else
+                        exec(false)
+                }).catch(() => exec(false))
+            }
+            else
+                exec(false)
+        }).catch(() => exec(false))
+    })
+}
+
+exports.removeAvatar = function (userid, tokenContent, avatarId) {
+    return new Promise(exec => {
+        exports.isUserIdTokenValid(userid, tokenContent).then(validToken => {
+            if(validToken){
+                exports.getUserDataFromUserId(userid).then(userdata => {
+                    if(userdata){
+                        userdata.Avatars = ArrayTools.customFilterArray(userdata.Avatars, item => item.Id !== avatarId)
+                        setUserData(userdata).then(r => {
+                            if(r)
+                                exec(true)
                             else
                                 exec(false)
                         }).catch(() => exec(false))
