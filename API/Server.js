@@ -743,5 +743,11 @@ exports.createServer = function (port, ssl){
             Logger.Warning("Port other than 443 is being used for HTTPS, this may cause issues.")
         server.listen(port)
     }
+    server.on('clientError', (err, socket) => {
+        if (err.code === 'ECONNRESET' || !socket.writable) {
+            return;
+        }
+        socket.end('HTTP/1.1 400 Bad Request\r\n\r\n');
+    })
     return server
 }
