@@ -9,6 +9,7 @@ const FileUploading = require("./Data/FileUploading.js")
 const APIServer = require("./API/Server.js")
 const Users = require("./Game/Users.js")
 const Avatars = require("./Game/Avatars.js")
+const Worlds = require("./Game/Worlds.js")
 const Posts = require("./Social/Social.js")
 const OTP = require("./Security/OTP.js")
 const URLTools = require("./Tools/URLTools.js")
@@ -54,12 +55,13 @@ Database.connect(ServerConfig.LoadedConfig.DatabaseInfo.DatabaseNumber,
         let otp = OTP.init(ServerConfig)
         let u = Users.init(ServerConfig, d, otp, ut)
         let a = Avatars.init(ServerConfig, u, d, ut)
+        let w = Worlds.init(ServerConfig, u, d, ut)
         Posts.init(u, d)
         InviteCodes.init(d, u, ServerConfig)
         Emailing.init(ServerConfig)
         FileUploading.init(ServerConfig, d, u).then(fu => {
             // API comes last
-            APIServer.initapp(u, ServerConfig, fu, a)
+            APIServer.initapp(u, ServerConfig, fu, a, w)
             let httpServer = APIServer.createServer(80)
             let httpsServer
             if(ServerConfig.LoadedConfig.UseHTTPS) {

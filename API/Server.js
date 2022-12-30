@@ -17,6 +17,7 @@ let ServerConfig
 let Users
 let FileUploading
 let Avatars
+let Worlds
 
 const API_VERSION = "v1"
 
@@ -34,11 +35,12 @@ function isUserBodyValid(property, targetType){
     return v
 }
 
-exports.initapp = function (usersModule, serverConfig, fileUploadModule, avatarsModule){
+exports.initapp = function (usersModule, serverConfig, fileUploadModule, avatarsModule, worldsModule){
     Users = usersModule
     ServerConfig = serverConfig
     FileUploading = fileUploadModule
     Avatars = avatarsModule
+    Worlds = worldsModule
 
     upload = multer({ dest: "uploads/", limits: { fileSize: ServerConfig.LoadedConfig.MaxFileSize * 1000000 } })
     app.use(express.static(path.resolve(serverConfig.LoadedConfig.WebRoot), {
@@ -641,6 +643,7 @@ exports.initapp = function (usersModule, serverConfig, fileUploadModule, avatars
         let userid = req.body.userid
         let tokenContent = req.body.tokenContent
         let avatarMeta = req.body.avatarMeta
+        let worldMeta = req.body.worldMeta
         if(isUserBodyValid(userid, "string") && isUserBodyValid(tokenContent, "string")){
             Users.isUserIdTokenValid(userid, tokenContent).then(validToken => {
                 if(validToken){
@@ -674,6 +677,36 @@ exports.initapp = function (usersModule, serverConfig, fileUploadModule, avatars
                                 }).catch(err => {
                                     Logger.Error("Failed to upload avatar for reason " + err)
                                     res.end(APIMessage.craftAPIMessage(false, "Failed to upload avatar!"))
+                                    deleteFile(file.path)
+                                })
+                            }
+                            else if(worldMeta !== undefined){
+                                Worlds.handleFileUpload(userid, tokenContent, avatarMeta).then(verifiedWorldMeta => {
+                                    if(verifiedWorldMeta !== undefined){
+                                        Users.addWorld(userid, verifiedWorldMeta).then(uwar => {
+                                            if(uwar){
+                                                res.end(APIMessage.craftAPIMessage(true, "Uploaded World!", {
+                                                    UploadData: r
+                                                }))
+                                                deleteFile(file.path)
+                                            }
+                                            else{
+                                                res.end(APIMessage.craftAPIMessage(false, "Failed to upload World!"))
+                                                deleteFile(file.path)
+                                            }
+                                        }).catch(err => {
+                                            Logger.Error("Failed to upload world for reason " + err)
+                                            res.end(APIMessage.craftAPIMessage(false, "Failed to upload world!"))
+                                            deleteFile(file.path)
+                                        })
+                                    }
+                                    else{
+                                        res.end(APIMessage.craftAPIMessage(false, "Failed to upload World!"))
+                                        deleteFile(file.path)
+                                    }
+                                }).catch(err => {
+                                    Logger.Error("Failed to upload avatar for reason " + err)
+                                    res.end(APIMessage.craftAPIMessage(false, "Failed to upload world!"))
                                     deleteFile(file.path)
                                 })
                             }

@@ -1468,6 +1468,48 @@ exports.removeAvatar = function (userid, tokenContent, avatarId) {
     })
 }
 
+exports.addWorld = function (userid, avatarMeta) {
+    return new Promise(exec => {
+        exports.getUserDataFromUserId(userid).then(userdata => {
+            if(userdata){
+                userdata.Worlds.push(avatarMeta)
+                setUserData(userdata).then(r => {
+                    if(r)
+                        exec(true)
+                    else
+                        exec(false)
+                }).catch(() => exec(false))
+            }
+            else
+                exec(false)
+        }).catch(() => exec(false))
+    })
+}
+
+exports.removeWorld = function (userid, tokenContent, avatarId) {
+    return new Promise(exec => {
+        exports.isUserIdTokenValid(userid, tokenContent).then(validToken => {
+            if(validToken){
+                exports.getUserDataFromUserId(userid).then(userdata => {
+                    if(userdata){
+                        userdata.Worlds = ArrayTools.customFilterArray(userdata.World, item => item.Id !== avatarId)
+                        setUserData(userdata).then(r => {
+                            if(r)
+                                exec(true)
+                            else
+                                exec(false)
+                        }).catch(() => exec(false))
+                    }
+                    else
+                        exec(false)
+                }).catch(() => exec(false))
+            }
+            else
+                exec(false)
+        }).catch(() => exec(false))
+    })
+}
+
 // Moderator Section
 // These functions should be called AFTER authentication
 
