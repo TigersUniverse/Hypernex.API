@@ -650,7 +650,7 @@ exports.initapp = function (usersModule, serverConfig, fileUploadModule, avatars
                     let filebuffer = fs.readFileSync(file.path)
                     FileUploading.UploadFile(userid, file.originalname, filebuffer).then(r => {
                         if(r) {
-                            if(avatarMeta !== undefined){
+                            if(avatarMeta !== undefined && r.UploadType === FileUploading.UploadType.Avatar){
                                 Avatars.handleFileUpload(userid, tokenContent, avatarMeta).then(verifiedAvatarMeta => {
                                     if(verifiedAvatarMeta !== undefined){
                                         Users.addAvatar(userid, verifiedAvatarMeta).then(uaar => {
@@ -680,7 +680,7 @@ exports.initapp = function (usersModule, serverConfig, fileUploadModule, avatars
                                     deleteFile(file.path)
                                 })
                             }
-                            else if(worldMeta !== undefined){
+                            else if(worldMeta !== undefined && r.UploadType === FileUploading.UploadType.World){
                                 Worlds.handleFileUpload(userid, tokenContent, avatarMeta).then(verifiedWorldMeta => {
                                     if(verifiedWorldMeta !== undefined){
                                         Users.addWorld(userid, verifiedWorldMeta).then(uwar => {
