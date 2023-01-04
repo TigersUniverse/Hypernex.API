@@ -1586,6 +1586,106 @@ exports.addWorld = function (userid, avatarMeta) {
     })
 }
 
+// Expose-able
+exports.addWorldToken = function (userid, tokenContent, worldId) {
+    return new Promise((exec, reject) => {
+        exports.isUserIdTokenValid(userid, tokenContent).then(tokenValid => {
+            if(tokenValid){
+                exports.getUserDataFromUserId(userid).then(user => {
+                    if(user){
+                        let selectedWorld = undefined
+                        for(let i = 0; i < user.Worlds.length; i++){
+                            let world = user.Worlds[i]
+                            if(world.Id === worldId)
+                                selectedWorld = world
+                        }
+                        if(selectedWorld !== undefined){
+                            if(selectedWorld.Tokens === undefined)
+                                selectedWorld.Tokens = []
+                            let token = ID.newSafeURLTokenPassword(50)
+                            selectedWorld.Tokens.push(token)
+                            setUserData(user).then(r => {
+                                if(r)
+                                    exec(token)
+                                else
+                                    exec(undefined)
+                            }).catch(err => reject(err))
+                        }
+                        else
+                            exec(undefined)
+                    }
+                    else
+                        exec(undefined)
+                }).catch(err => reject(err))
+            }
+            else
+                exec(undefined)
+        }).catch(err => reject(err))
+    })
+}
+
+// Expose-able
+exports.removeWorldToken = function (userid, tokenContent, worldId, worldToken) {
+    return new Promise((exec, reject) => {
+        exports.isUserIdTokenValid(userid, tokenContent).then(tokenValid => {
+            if(tokenValid){
+                exports.getUserDataFromUserId(userid).then(user => {
+                    if(user){
+                        let selectedWorld = undefined
+                        for(let i = 0; i < user.Worlds.length; i++){
+                            let world = user.Worlds[i]
+                            if(world.Id === worldId)
+                                selectedWorld = world
+                        }
+                        if(selectedWorld !== undefined){
+                            if(selectedWorld.Tokens === undefined){
+                                selectedWorld.Tokens = []
+                                exec(true)
+                            }
+                            else{
+                                selectedWorld.Tokens = ArrayTools.filterArray(selectedWorld.Tokens, worldToken)
+                                setUserData(user).then(r => {
+                                    if(r)
+                                        exec(true)
+                                    else
+                                        exec(false)
+                                }).catch(err => reject(err))
+                            }
+                        }
+                        else
+                            exec(false)
+                    }
+                    else
+                        exec(false)
+                }).catch(err => reject(err))
+            }
+            else
+                exec(false)
+        }).catch(err => reject(err))
+    })
+}
+
+exports.getWorldIdFromFileId = function (userid, fileId) {
+    return new Promise((exec, reject) => {
+        exports.getUserDataFromUserId(userid).then(user => {
+            if(user){
+                let selectedWorld = undefined
+                for(let i = 0; i < user.Worlds.length; i++){
+                    let world = user.Worlds[i]
+                    if(world.FileId === fileId)
+                        selectedWorld = world
+                }
+                if(selectedWorld !== undefined)
+                    exec(selectedWorld.Id)
+                else
+                    exec(undefined)
+            }
+            else
+                exec(undefined)
+        }).catch(err => reject(err))
+    })
+}
+
 exports.removeWorld = function (userid, tokenContent, avatarId) {
     return new Promise(exec => {
         exports.isUserIdTokenValid(userid, tokenContent).then(validToken => {

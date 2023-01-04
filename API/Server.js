@@ -4,6 +4,7 @@ const https = require('https')
 const bodyParser = require("body-parser");
 const path = require("path")
 
+const ArrayTools = require("./../Tools/ArrayTools.js")
 const Logger = require("./../Logging/Logger.js")
 const APIMessage = require("./APIMessage.js")
 
@@ -754,14 +755,44 @@ exports.initapp = function (usersModule, serverConfig, fileUploadModule, avatars
                         case FileUploading.UploadType.Avatar:{
                             Users.getAvatarIdFromFileId(userid, fileData).then(avatarMeta => {
                                 if(avatarMeta !== undefined){
-
+                                    if(ArrayTools.find(avatarMeta.Tokens, filetoken) !== undefined || avatarMeta.Publicity === Avatars.Publicity.Anyone){
+                                        res.attachment(fileData.FileMeta.FileName)
+                                        res.send(fileData.FileData.Body)
+                                    }
+                                    else
+                                        res.end(APIMessage.craftAPIMessage(false, "Failed to Authenticate FileToken"))
                                 }
+                                else
+                                    res.end(APIMessage.craftAPIMessage(false, "AvatarMeta does not exist!"))
+                            }).catch(err => {
+                                Logger.Error("Failed to get AvatarMeta for reason " + err)
+                                res.end(APIMessage.craftAPIMessage(false, "Failed to get AvatarMeta!"))
                             })
+                            break
                         }
+                        case FileUploading.UploadType.World:{
+                            Users.getWorldIdFromFileId(userid, fileData).then(worldMeta => {
+                                if(worldMeta !== undefined){
+                                    if(ArrayTools.find(worldMeta.Tokens, filetoken) !== undefined || worldMeta.Publicity === Worlds.Publicity.Anyone){
+                                        res.attachment(fileData.FileMeta.FileName)
+                                        res.send(fileData.FileData.Body)
+                                    }
+                                    else
+                                        res.end(APIMessage.craftAPIMessage(false, "Failed to Authenticate FileToken"))
+                                }
+                                else
+                                    res.end(APIMessage.craftAPIMessage(false, "WorldMeta does not exist!"))
+                            }).catch(err => {
+                                Logger.Error("Failed to get WorldMeta for reason " + err)
+                                res.end(APIMessage.craftAPIMessage(false, "Failed to get WorldMeta!"))
+                            })
+                            break
+                        }
+                        case FileUploading.UploadType.Media:
+                            res.attachment(fileData.FileMeta.FileName)
+                            res.send(fileData.FileData.Body)
+                            break
                     }
-                    // TODO: Authentication with WebSocket
-                    res.attachment(fileData.FileMeta.FileName)
-                    res.send(fileData.FileData.Body)
                 }
                 else{
                     res.end(APIMessage.craftAPIMessage(false, "Failed to get file!"))
@@ -771,6 +802,101 @@ exports.initapp = function (usersModule, serverConfig, fileUploadModule, avatars
                 res.end(APIMessage.craftAPIMessage(false, "Failed to get file!"))
             })
         }
+        else
+            res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+    })
+
+    app.post(getAPIEndpoint() + "manageAssetToken", function (req, res) {
+        let userid = req.body.userid
+        let tokenContent = req.body.tokenContent
+        let action = req.body.action
+        let assetId = req.body.assetId
+        let removeAssetToken = req.body.assetToken
+        if(isUserBodyValid(userid, "string") && isUserBodyValid(tokenContent, "string") && isUserBodyValid(action) && isUserBodyValid(assetId, "string")) {
+            try {
+                let assetType = assetId.split('_')[0].toLowerCase()
+                switch (assetType) {
+                    case "avatar": {
+                        switch (action) {
+                            case 0:
+                                // Add
+                                Users.addAvatarToken(userid, tokenContent, assetId).then(token => {
+                                    if(token !== undefined)
+                                        res.end(APIMessage.craftAPIMessage(true, "Added Token!", {
+                                            token: token
+                                        }))
+                                    else
+                                        res.end(APIMessage.craftAPIMessage(false, "Failed to add Token!"))
+                                }).catch(err => {
+                                    Logger.Error("Failed to add token for reason " + err)
+                                    res.end(APIMessage.craftAPIMessage(false, "Failed to add Token!"))
+                                })
+                                break
+                            case 1:
+                                // Remove
+                                if(isUserBodyValid(removeAssetToken, "string")){
+                                    Users.removeAvatarToken(userid, tokenContent, assetId, removeAssetToken).then(token => {
+                                        if(token !== undefined)
+                                            res.end(APIMessage.craftAPIMessage(true, "Removed Token!"))
+                                        else
+                                            res.end(APIMessage.craftAPIMessage(false, "Failed to remove Token!"))
+                                    }).catch(err => {
+                                        Logger.Error("Failed to remove token for reason " + err)
+                                        res.end(APIMessage.craftAPIMessage(false, "Failed to remove Token!"))
+                                    })
+                                }
+                                else
+                                    res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+                                break
+                        }
+                        break
+                    }
+                    case "world":{
+                        switch (action) {
+                            case 0:
+                                // Add
+                                Users.addWorldToken(userid, tokenContent, assetId).then(token => {
+                                    if(token !== undefined)
+                                        res.end(APIMessage.craftAPIMessage(true, "Added Token!", {
+                                            token: token
+                                        }))
+                                    else
+                                        res.end(APIMessage.craftAPIMessage(false, "Failed to add Token!"))
+                                }).catch(err => {
+                                    Logger.Error("Failed to add token for reason " + err)
+                                    res.end(APIMessage.craftAPIMessage(false, "Failed to add Token!"))
+                                })
+                                break
+                            case 1:
+                                // Remove
+                                if(isUserBodyValid(removeAssetToken, "string")){
+                                    Users.removeWorldToken(userid, tokenContent, assetId, removeAssetToken).then(token => {
+                                        if(token !== undefined)
+                                            res.end(APIMessage.craftAPIMessage(true, "Removed Token!"))
+                                        else
+                                            res.end(APIMessage.craftAPIMessage(false, "Failed to remove Token!"))
+                                    }).catch(err => {
+                                        Logger.Error("Failed to remove token for reason " + err)
+                                        res.end(APIMessage.craftAPIMessage(false, "Failed to remove Token!"))
+                                    })
+                                }
+                                else
+                                    res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+                                break
+                        }
+                        break
+                    }
+                    default:
+                        res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+                        break
+                }
+            }
+            catch (e) {
+                res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+            }
+        }
+        else
+            res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
     })
 }
 
