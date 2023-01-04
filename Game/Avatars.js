@@ -48,13 +48,14 @@ exports.getAvatarMetaById = function (avatarid) {
     })
 }
 
-exports.handleFileUpload = function (userid, tokenContent, clientAvatarMeta) {
+exports.handleFileUpload = function (userid, tokenContent, fileid, clientAvatarMeta) {
     return new Promise((exec, reject) => {
         Users.isUserIdTokenValid(userid, tokenContent).then(validToken => {
             if(validToken){
                 isValidAvatarMeta(userid, clientAvatarMeta).then(validClientMeta => {
                     if(validClientMeta){
                         let avatarMeta = clientAvatarMeta
+                        avatarMeta.FileId = fileid
                         let id = ID.new(ID.IDTypes.Avatar)
                         if(avatarMeta.Id === undefined || avatarMeta.Id === ""){
                             avatarMeta.Id = id

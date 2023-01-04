@@ -49,13 +49,14 @@ exports.getWorldMetaById = function (worldid) {
     })
 }
 
-exports.handleFileUpload = function (userid, tokenContent, clientWorldMeta) {
+exports.handleFileUpload = function (userid, tokenContent, fileid, clientWorldMeta) {
     return new Promise((exec, reject) => {
         Users.isUserIdTokenValid(userid, tokenContent).then(validToken => {
             if(validToken){
                 isValidAvatarMeta(userid, clientWorldMeta).then(validClientMeta => {
                     if(validClientMeta){
                         let worldMeta = clientWorldMeta
+                        worldMeta.FileId = fileid
                         let id = ID.new(ID.IDTypes.World)
                         if(worldMeta.Id === undefined || worldMeta.Id === ""){
                             worldMeta.Id = id

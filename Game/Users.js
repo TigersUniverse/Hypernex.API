@@ -1444,6 +1444,106 @@ exports.addAvatar = function (userid, avatarMeta) {
     })
 }
 
+// Expose-able
+exports.addAvatarToken = function (userid, tokenContent, avatarId) {
+    return new Promise((exec, reject) => {
+        exports.isUserIdTokenValid(userid, tokenContent).then(tokenValid => {
+            if(tokenValid){
+                exports.getUserDataFromUserId(userid).then(user => {
+                    if(user){
+                        let selectedAvatar = undefined
+                        for(let i = 0; i < user.Avatars.length; i++){
+                            let avatar = user.Avatars[i]
+                            if(avatar.Id === avatarId)
+                                selectedAvatar = avatar
+                        }
+                        if(selectedAvatar !== undefined){
+                            if(selectedAvatar.Tokens === undefined)
+                                selectedAvatar.Tokens = []
+                            let token = ID.newSafeURLTokenPassword(50)
+                            selectedAvatar.Tokens.push(token)
+                            setUserData(user).then(r => {
+                                if(r)
+                                    exec(token)
+                                else
+                                    exec(undefined)
+                            }).catch(err => reject(err))
+                        }
+                        else
+                            exec(undefined)
+                    }
+                    else
+                        exec(undefined)
+                }).catch(err => reject(err))
+            }
+            else
+                exec(undefined)
+        }).catch(err => reject(err))
+    })
+}
+
+// Expose-able
+exports.removeAvatarToken = function (userid, tokenContent, avatarId, avatarToken) {
+    return new Promise((exec, reject) => {
+        exports.isUserIdTokenValid(userid, tokenContent).then(tokenValid => {
+            if(tokenValid){
+                exports.getUserDataFromUserId(userid).then(user => {
+                    if(user){
+                        let selectedAvatar = undefined
+                        for(let i = 0; i < user.Avatars.length; i++){
+                            let avatar = user.Avatars[i]
+                            if(avatar.Id === avatarId)
+                                selectedAvatar = avatar
+                        }
+                        if(selectedAvatar !== undefined){
+                            if(selectedAvatar.Tokens === undefined){
+                                selectedAvatar.Tokens = []
+                                exec(true)
+                            }
+                            else{
+                                selectedAvatar.Tokens = ArrayTools.filterArray(selectedAvatar.Tokens, avatarToken)
+                                setUserData(user).then(r => {
+                                    if(r)
+                                        exec(true)
+                                    else
+                                        exec(false)
+                                }).catch(err => reject(err))
+                            }
+                        }
+                        else
+                            exec(false)
+                    }
+                    else
+                        exec(false)
+                }).catch(err => reject(err))
+            }
+            else
+                exec(false)
+        }).catch(err => reject(err))
+    })
+}
+
+exports.getAvatarIdFromFileId = function (userid, fileId) {
+    return new Promise((exec, reject) => {
+        exports.getUserDataFromUserId(userid).then(user => {
+            if(user){
+                let selectedAvatar = undefined
+                for(let i = 0; i < user.Avatars.length; i++){
+                    let avatar = user.Avatars[i]
+                    if(avatar.FileId === fileId)
+                        selectedAvatar = avatar
+                }
+                if(selectedAvatar !== undefined)
+                    exec(selectedAvatar.Id)
+                else
+                    exec(undefined)
+            }
+            else
+                exec(undefined)
+        }).catch(err => reject(err))
+    })
+}
+
 exports.removeAvatar = function (userid, tokenContent, avatarId) {
     return new Promise(exec => {
         exports.isUserIdTokenValid(userid, tokenContent).then(validToken => {

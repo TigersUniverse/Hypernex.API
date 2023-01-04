@@ -651,7 +651,7 @@ exports.initapp = function (usersModule, serverConfig, fileUploadModule, avatars
                     FileUploading.UploadFile(userid, file.originalname, filebuffer).then(r => {
                         if(r) {
                             if(avatarMeta !== undefined && r.UploadType === FileUploading.UploadType.Avatar){
-                                Avatars.handleFileUpload(userid, tokenContent, avatarMeta).then(verifiedAvatarMeta => {
+                                Avatars.handleFileUpload(userid, tokenContent, r.FileId, avatarMeta).then(verifiedAvatarMeta => {
                                     if(verifiedAvatarMeta !== undefined){
                                         Users.addAvatar(userid, verifiedAvatarMeta).then(uaar => {
                                             if(uuar){
@@ -681,7 +681,7 @@ exports.initapp = function (usersModule, serverConfig, fileUploadModule, avatars
                                 })
                             }
                             else if(worldMeta !== undefined && r.UploadType === FileUploading.UploadType.World){
-                                Worlds.handleFileUpload(userid, tokenContent, avatarMeta).then(verifiedWorldMeta => {
+                                Worlds.handleFileUpload(userid, tokenContent, r.FileId, avatarMeta).then(verifiedWorldMeta => {
                                     if(verifiedWorldMeta !== undefined){
                                         Users.addWorld(userid, verifiedWorldMeta).then(uwar => {
                                             if(uwar){
@@ -743,12 +743,22 @@ exports.initapp = function (usersModule, serverConfig, fileUploadModule, avatars
         }
     })
 
-    app.get(getAPIEndpoint() + "file/:userid/:fileid", function (req, res) {
+    app.get(getAPIEndpoint() + "file/:userid/:fileid/:filetoken", function (req, res) {
         let userid = req.params.userid
         let fileid = req.params.fileid
+        let filetoken = req.params.filetoken
         if(isUserBodyValid(userid, "string") && isUserBodyValid(fileid, "string")){
             FileUploading.getFileById(userid, fileid).then(fileData => {
                 if(fileData){
+                    switch (fileData.FileMeta.UploadType) {
+                        case FileUploading.UploadType.Avatar:{
+                            Users.getAvatarIdFromFileId(userid, fileData).then(avatarMeta => {
+                                if(avatarMeta !== undefined){
+
+                                }
+                            })
+                        }
+                    }
                     // TODO: Authentication with WebSocket
                     res.attachment(fileData.FileMeta.FileName)
                     res.send(fileData.FileData.Body)
