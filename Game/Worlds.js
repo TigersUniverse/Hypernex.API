@@ -1,5 +1,6 @@
 const ID = require("./../Data/ID.js")
-const Logger = require("./../Logging/Logger.js");
+const ArrayTools = require("./../Tools/ArrayTools.js")
+const Logger = require("./../Logging/Logger.js")
 
 const WORLDDATA_DATABASE_PREFIX = "world/"
 
@@ -56,26 +57,42 @@ exports.handleFileUpload = function (userid, tokenContent, fileid, clientWorldMe
                 isValidAvatarMeta(userid, clientWorldMeta).then(validClientMeta => {
                     if(validClientMeta){
                         let worldMeta = clientWorldMeta
-                        worldMeta.FileId = fileid
                         let id = ID.new(ID.IDTypes.World)
                         if(worldMeta.Id === undefined || worldMeta.Id === ""){
                             worldMeta.Id = id
                             exports.doesWorldExist(worldMeta.Id).then(overlapping => {
                                 if(overlapping)
                                     exec(undefined)
-                                else
-                                    setAvatarMeta(worldMeta).then(r => {
-                                        if(r)
+                                else {
+                                    worldMeta.Builds = [{
+                                        FileId: fileid,
+                                        BuildPlatform: worldMeta.BuildPlatform
+                                    }]
+                                    setWorldMeta(worldMeta).then(r => {
+                                        if (r)
                                             exec(worldMeta)
                                         else
                                             exec(undefined)
                                     }).catch(err => reject(err))
+                                }
                             }).catch(err => reject(err))
                         }
                         else
-                            setWorldMeta(worldMeta).then(r => {
-                                if(r)
-                                    exec(worldMeta)
+                            exports.getWorldMetaById(id).then(wm => {
+                                if(wm !== undefined){
+                                    let newbuilds = ArrayTools.customFilterArray(wm.Builds, x => x.BuildPlatform === worldMeta.BuildPlatform)
+                                    newbuilds.push({
+                                        FileId: fileid,
+                                        BuildPlatform: worldMeta.BuildPlatform
+                                    })
+                                    wm.Builds = newbuilds
+                                    setWorldMeta(wm).then(r => {
+                                        if(r)
+                                            exec(wm)
+                                        else
+                                            exec(undefined)
+                                    }).catch(err => reject(err))
+                                }
                                 else
                                     exec(undefined)
                             }).catch(err => reject(err))
@@ -127,6 +144,8 @@ function isValidAvatarMeta(ownerid, worldMeta){
                         allowed = false
                 }
             }
+            if(worldMeta.BuildPlatform < exports.BuildPlatform.Windows || worldMeta.BuildPlatform > exports.BuildPlatform.Android)
+                allowed = false
             if(!allowed){
                 exec(false)
                 return
@@ -161,4 +180,9 @@ function isValidAvatarMeta(ownerid, worldMeta){
 exports.Publicity = {
     Anyone: 0,
     OwnerOnly: 1
+}
+
+exports.BuildPlatform = {
+    Windows: 0,
+    Android: 1
 }

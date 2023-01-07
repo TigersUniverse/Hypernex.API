@@ -1,5 +1,6 @@
 const ID = require("./../Data/ID.js")
-const Logger = require("./../Logging/Logger.js");
+const ArrayTools = require("./../Tools/ArrayTools.js")
+const Logger = require("./../Logging/Logger.js")
 
 const AVATARDATA_DATABASE_PREFIX = "avatar/"
 
@@ -55,26 +56,42 @@ exports.handleFileUpload = function (userid, tokenContent, fileid, clientAvatarM
                 isValidAvatarMeta(userid, clientAvatarMeta).then(validClientMeta => {
                     if(validClientMeta){
                         let avatarMeta = clientAvatarMeta
-                        avatarMeta.FileId = fileid
                         let id = ID.new(ID.IDTypes.Avatar)
                         if(avatarMeta.Id === undefined || avatarMeta.Id === ""){
                             avatarMeta.Id = id
                             exports.doesAvatarExist(avatarMeta.Id).then(overlapping => {
                                 if(overlapping)
                                     exec(undefined)
-                                else
+                                else{
+                                    avatarMeta.Builds = [{
+                                        FileId: fileid,
+                                        BuildPlatform: avatarMeta.BuildPlatform
+                                    }]
                                     setAvatarMeta(avatarMeta).then(r => {
                                         if(r)
                                             exec(avatarMeta)
                                         else
                                             exec(undefined)
                                     }).catch(err => reject(err))
+                                }
                             }).catch(err => reject(err))
                         }
                         else
-                            setAvatarMeta(avatarMeta).then(r => {
-                                if(r)
-                                    exec(avatarMeta)
+                            exports.getAvatarMetaById(id).then(am => {
+                                if(am !== undefined){
+                                    let newbuilds = ArrayTools.customFilterArray(am.Builds, x => x.BuildPlatform === avatarMeta.BuildPlatform)
+                                    newbuilds.push({
+                                        FileId: fileid,
+                                        BuildPlatform: avatarMeta.BuildPlatform
+                                    })
+                                    am.Builds = newbuilds
+                                    setAvatarMeta(am).then(r => {
+                                        if(r)
+                                            exec(am)
+                                        else
+                                            exec(undefined)
+                                    }).catch(err => reject(err))
+                                }
                                 else
                                     exec(undefined)
                             }).catch(err => reject(err))
@@ -117,6 +134,8 @@ function isValidAvatarMeta(ownerid, avatarMeta){
             }
             if(!URLTools.isURLAllowed(avatarMeta.ImageURL))
                 allowed = false
+            if(avatarMeta.BuildPlatform < exports.BuildPlatform.Windows || avatarMeta.BuildPlatform > exports.BuildPlatform.Android)
+                allowed = false
             if(!allowed){
                 exec(false)
                 return
@@ -151,4 +170,9 @@ function isValidAvatarMeta(ownerid, avatarMeta){
 exports.Publicity = {
     Anyone: 0,
     OwnerOnly: 1
+}
+
+exports.BuildPlatform = {
+    Windows: 0,
+    Android: 1
 }
