@@ -6,19 +6,19 @@ const ID = require("./ID.js")
 const ArrayTools = require("./../Tools/ArrayTools.js")
 const Logger = require("./../Logging/Logger.js")
 
-const UPLOAD_FILE_PREFIX = "uploads/"
-
 let Config
-let Database
 let Users
+let SearchDatabase
 
+let UploadsCollection
 let s3
 
-exports.init = function (c, d, u) {
+exports.init = function (c, d, u, searchDatabaseModule, uploadsCollection) {
     return new Promise((exec, reject) => {
         Config = c
-        Database = d
         Users = u
+        SearchDatabase = searchDatabaseModule
+        UploadsCollection = uploadsCollection
         AWS.config.update({
             accessKeyId: Config.LoadedConfig.SpacesInfo.AccessKeyId,
             secretAccessKey: Config.LoadedConfig.SpacesInfo.SecretAccessKey
@@ -35,7 +35,7 @@ exports.init = function (c, d, u) {
 
 exports.initUser = function (userid) {
     return new Promise((exec, reject) => {
-        Database.set(UPLOAD_FILE_PREFIX + userid, {
+        SearchDatabase.createDocument(UploadsCollection, {
             UserId: userid,
             Uploads: []
         }).then(r => {
@@ -49,7 +49,7 @@ exports.initUser = function (userid) {
 
 function setUploadData(uploadData){
     return new Promise((exec, reject) => {
-        Database.set(UPLOAD_FILE_PREFIX + uploadData.UserId, uploadData).then(r => {
+        SearchDatabase.updateDocument(UploadsCollection, {"UserId": uploadData.UserId}, {$set: uploadData}).then(r => {
             if(r)
                 exec(true)
             else
@@ -60,16 +60,25 @@ function setUploadData(uploadData){
 
 function addUploadDataToUser (userid, data) {
     return new Promise((exec, reject) => {
-        Database.get(UPLOAD_FILE_PREFIX + userid).then(uploadData => {
-            if(uploadData){
-                let nud = uploadData
-                nud.Uploads.push(data)
-                setUploadData(nud).then(r => {
-                    if(r)
-                        exec(true)
-                    else
-                        reject(new Error("Failed to save UploadData!"))
-                }).catch(err => reject(err))
+        SearchDatabase.find(UploadsCollection, {"UserId": userid}).then(uploadDatas => {
+            if(uploadDatas){
+                let found = false
+                for(let i in uploadDatas){
+                    let uploadData = uploadDatas[i]
+                    if(uploadData.UserId === userid){
+                        found = true
+                        let nud = uploadData
+                        nud.Uploads.push(data)
+                        setUploadData(nud).then(r => {
+                            if(r)
+                                exec(true)
+                            else
+                                reject(new Error("Failed to save UploadData!"))
+                        }).catch(err => reject(err))
+                    }
+                }
+                if(!found)
+                    reject(new Error("Failed to find Upload Data from UserId " + userid))
             }
             else
                 reject(new Error("No UploadData found!"))
@@ -79,25 +88,30 @@ function addUploadDataToUser (userid, data) {
 
 function removeUploadDataFromUser (userid, data) {
     return new Promise((exec, reject) => {
-        Database.get(UPLOAD_FILE_PREFIX + userid).then(uploadData => {
-            if(uploadData){
-                let nud = uploadData
-                nud.Uploads = ArrayTools.customFilterArray(nud.Uploads, item => item.FileId !== data.FileId)
-                setUploadData(nud).then(r => {
-                    if(r)
-                        exec(true)
-                    else
-                        reject(false)
-                }).catch(err => reject(err))
+        SearchDatabase.find(UploadsCollection, {"UserId": userid}).then(uploadDatas => {
+            if(uploadDatas){
+                let found = false
+                for(let i in uploadDatas){
+                    let uploadData = uploadDatas[i]
+                    if(uploadData.UserId === userid){
+                        found = true
+                        let nud = uploadData
+                        nud.Uploads = ArrayTools.customFilterArray(nud.Uploads, item => item.FileId !== data.FileId)
+                        setUploadData(nud).then(r => {
+                            if(r)
+                                exec(true)
+                            else
+                                reject(false)
+                        }).catch(err => reject(err))
+                    }
+                }
+                if(!found)
+                    reject(new Error("Failed to find Upload Data from UserId " + userid))
             }
             else
                 reject(false)
         }).catch(err => reject(err))
     })
-}
-
-function isUploadTypeValid(uploadType){
-    return uploadType === ID.IDTypes.Avatar || uploadType === ID.IDTypes.World || uploadType === ID.IDTypes.Media
 }
 
 // Indexed by the ID.IDTypes
@@ -134,15 +148,24 @@ function getUploadTypeFromFileExtension(fileExtension){
 
 exports.doesFileIdExist = function (userid, fileId){
     return new Promise((exec, reject) => {
-        Database.get(UPLOAD_FILE_PREFIX + userid).then(uploadData => {
-            if(uploadData){
-                let ud = false
-                for(let i = 0; i < uploadData.Uploads.length; i++){
-                    let data = uploadData.Uploads[i]
-                    if(data.FileId === fileId)
-                        ud = fileId
+        SearchDatabase.find(UploadsCollection, {"UserId": userid}).then(uploadDatas => {
+            if(uploadDatas){
+                let found = false
+                for(let i in uploadDatas){
+                    let uploadData = uploadDatas[i]
+                    if(uploadData.UserId === userid){
+                        found = true
+                        let ud = false
+                        for(let i = 0; i < uploadData.Uploads.length; i++){
+                            let data = uploadData.Uploads[i]
+                            if(data.FileId === fileId)
+                                ud = fileId
+                        }
+                        exec(!!ud)
+                    }
                 }
-                exec(!!ud)
+                if(!found)
+                    reject(new Error("Failed to find Upload Data from UserId " + userid))
             }
             else
                 exec(false)
@@ -152,15 +175,24 @@ exports.doesFileIdExist = function (userid, fileId){
 
 exports.getFileMetaById = function (userid, fileId) {
     return new Promise((exec, reject) => {
-        Database.get(UPLOAD_FILE_PREFIX + userid).then(uploadData => {
-            if(uploadData){
-                let ud = undefined
-                for(let i = 0; i < uploadData.Uploads.length; i++){
-                    let data = uploadData.Uploads[i]
-                    if(data.FileId === fileId)
-                        ud = data
+        SearchDatabase.find(UploadsCollection, {"UserId": userid}).then(uploadDatas => {
+            if(uploadDatas){
+                let found = false
+                for(let i in uploadDatas){
+                    let uploadData = uploadDatas[i]
+                    if(uploadData.UserId === userid){
+                        found = true
+                        let ud = undefined
+                        for(let i = 0; i < uploadData.Uploads.length; i++){
+                            let data = uploadData.Uploads[i]
+                            if(data.FileId === fileId)
+                                ud = data
+                        }
+                        exec(ud)
+                    }
                 }
-                exec(ud)
+                if(!found)
+                    reject(new Error("Failed to find Upload Data from UserId " + userid))
             }
             else
                 reject(new Error("Upload Data not found!"))
@@ -212,7 +244,7 @@ exports.UploadFile = function (userid, fileName, buffer) {
                 exports.doesFileIdExist(userid, id).then(r => {
                     if(!r){
                         const key = userid + "/" + id + ft
-                        const data = createFileData(userid, id, key, fileType)
+                        const data = createFileData(userid, id, key, fileType, uploadType)
                         //const stream = streamify(buffer)
                         //broker.call('antivirus.scan', stream).then(scanResult => {
                             //if(!scanResult.infected){

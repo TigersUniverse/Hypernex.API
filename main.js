@@ -4,13 +4,13 @@ const process = require("process")
 const Logger = require("./Logging/Logger.js")
 const InviteCodes = require("./Data/InviteCodes.js")
 const Database = require("./Data/Database.js")
+const SearchDatabase = require("./Data/SearchDatabase.js")
 const Emailing = require("./Data/Emailing.js")
 const FileUploading = require("./Data/FileUploading.js")
 const APIServer = require("./API/Server.js")
 const Users = require("./Game/Users.js")
 const Avatars = require("./Game/Avatars.js")
 const Worlds = require("./Game/Worlds.js")
-const Posts = require("./Social/Social.js")
 const OTP = require("./Security/OTP.js")
 const URLTools = require("./Tools/URLTools.js")
 
@@ -51,26 +51,32 @@ if(ServerConfig.LoadedConfig.DatabaseInfo.UseDatabaseTLS)
 Database.connect(ServerConfig.LoadedConfig.DatabaseInfo.DatabaseNumber,
     ServerConfig.LoadedConfig.DatabaseInfo.Host, ServerConfig.LoadedConfig.DatabaseInfo.Port,
     databaseUsername, databasePassword, databaseTLS).then(d => {
-        // Init Modules
-        let otp = OTP.init(ServerConfig)
-        let u = Users.init(ServerConfig, d, otp, ut)
-        let a = Avatars.init(ServerConfig, u, d, ut)
-        let w = Worlds.init(ServerConfig, u, d, ut)
-        Posts.init(u, d)
-        InviteCodes.init(d, u, ServerConfig)
-        Emailing.init(ServerConfig)
-        FileUploading.init(ServerConfig, d, u).then(fu => {
-            // API comes last
-            APIServer.initapp(u, ServerConfig, fu, a, w)
-            let httpServer = APIServer.createServer(80)
-            let httpsServer
-            if(ServerConfig.LoadedConfig.UseHTTPS) {
-                httpsServer = APIServer.createServer(443, {
-                    key: fs.readFileSync(ServerConfig.LoadedConfig.HTTPSTLS.TLSKeyLocation),
-                    cert: fs.readFileSync(ServerConfig.LoadedConfig.HTTPSTLS.TLSCertificateLocation)
-                })
-            }
-        }).catch(err => console.log(err))
+        SearchDatabase.Init(ServerConfig.LoadedConfig.MongoDBURL).then(sd => {
+            let mainSearchDatabase = sd.createDatabase("main")
+            let usersSearchCollection = sd.createCollection(mainSearchDatabase, "users")
+            let avatarsSearchCollection = sd.createCollection(mainSearchDatabase, "avatars")
+            let worldsSearchCollection = sd.createCollection(mainSearchDatabase, "worlds")
+            let uploadsSearchCollection = sd.createCollection(mainSearchDatabase, "uploads")
+            // Init Modules
+            let otp = OTP.init(ServerConfig)
+            let u = Users.init(ServerConfig, d, otp, ut, sd, usersSearchCollection)
+            let a = Avatars.init(ServerConfig, u, d, ut, sd, avatarsSearchCollection)
+            let w = Worlds.init(ServerConfig, u, d, ut, sd, worldsSearchCollection)
+            InviteCodes.init(d, u, ServerConfig)
+            Emailing.init(ServerConfig)
+            FileUploading.init(ServerConfig, d, u, sd, uploadsSearchCollection).then(fu => {
+                // API comes last
+                APIServer.initapp(u, ServerConfig, fu, a, w)
+                let httpServer = APIServer.createServer(80)
+                let httpsServer
+                if(ServerConfig.LoadedConfig.UseHTTPS) {
+                    httpsServer = APIServer.createServer(443, {
+                        key: fs.readFileSync(ServerConfig.LoadedConfig.HTTPSTLS.TLSKeyLocation),
+                        cert: fs.readFileSync(ServerConfig.LoadedConfig.HTTPSTLS.TLSCertificateLocation)
+                    })
+                }
+            }).catch(err => console.log(err))
+        })
     })
 
 process.stdin.resume()

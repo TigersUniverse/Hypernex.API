@@ -12,12 +12,17 @@ let serverConfig
 let Users
 let Database
 let URLTools
+let SearchDatabase
 
-exports.init = function (ServerConfig, usersModule, databaseModule, urlToolsModule){
+let WorldsCollection
+
+exports.init = function (ServerConfig, usersModule, databaseModule, urlToolsModule, searchDatabaseModule, worldsCollection){
     serverConfig = ServerConfig
     Users = usersModule
     Database = databaseModule
     URLTools = urlToolsModule
+    SearchDatabase = searchDatabaseModule
+    WorldsCollection = worldsCollection
     Logger.Log("Initialized Worlds!")
     return this
 }
@@ -109,9 +114,15 @@ exports.handleFileUpload = function (userid, tokenContent, fileid, clientWorldMe
 
 function setWorldMeta(worldMeta){
     return new Promise((exec, reject) => {
-        Database.set(WORLDDATA_DATABASE_PREFIX + worldMeta.Id, worldMeta).then(r => {
-            if(r)
-                exec(r)
+        SearchDatabase.updateDocument(WorldsCollection, {"Id": worldMeta.Id}, {$set: worldMeta}).then(r => {
+            if(r){
+                Database.set(WORLDDATA_DATABASE_PREFIX + worldMeta.Id, worldMeta).then(rr => {
+                    if(rr)
+                        exec(rr)
+                    else
+                        exec(false)
+                }).catch(err => reject(err))
+            }
             else
                 exec(false)
         }).catch(err => reject(err))
@@ -174,6 +185,20 @@ function isValidAvatarMeta(ownerid, worldMeta){
         catch(e){
             exec(false)
         }
+    })
+}
+
+exports.safeSearchWorld = function (name) {
+    return new Promise((exec, reject) => {
+        SearchDatabase.find(WorldsCollection, {"Name": {$regex: `.*${name}.*`, $options: 'i'}}).then(worlds => {
+            let candidates = []
+            for(let i in worlds){
+                let world = worlds[i]
+                if(world.Publicity === exports.Publicity.Anyone)
+                    candidates.push(world.Id)
+            }
+            exec(candidates)
+        }).catch(err => reject(err))
     })
 }
 

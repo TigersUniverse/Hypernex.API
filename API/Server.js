@@ -744,6 +744,116 @@ exports.initapp = function (usersModule, serverConfig, fileUploadModule, avatars
         }
     })
 
+    app.get(getAPIEndpoint() + "search/username/:username", function (req, res) {
+        let username = req.params.username
+        if(isUserBodyValid(username, "string")){
+            Users.safeSearchUsername(username).then(arr => {
+                res.end(APIMessage.craftAPIMessage(true, "Found Candidates!", {
+                    Candidates: arr
+                }))
+            }).catch(err => {
+                Logger.Error("Failed to search by username for reason " + err)
+                res.end(APIMessage.craftAPIMessage(false, "Failed to Search by Username"))
+            })
+        }
+        else
+            res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+    })
+
+    app.get(getAPIEndpoint() + "search/avatar/:name", function (req, res) {
+        let name = req.params.name
+        if(isUserBodyValid(name, "string")){
+            Avatars.safeSearchAvatar(name).then(arr => {
+                res.end(APIMessage.craftAPIMessage(true, "Found Candidates!", {
+                    Candidates: arr
+                }))
+            }).catch(err => {
+                Logger.Error("Failed to search by Avatar Name for reason " + err)
+                res.end(APIMessage.craftAPIMessage(false, "Failed to Search by Avatar Name"))
+            })
+        }
+        else
+            res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+    })
+
+    app.get(getAPIEndpoint() + "search/world/:name", function (req, res) {
+        let name = req.params.name
+        if(isUserBodyValid(name, "string")){
+            Worlds.safeSearchWorld(name).then(arr => {
+                res.end(APIMessage.craftAPIMessage(true, "Found Candidates!", {
+                    Candidates: arr
+                }))
+            }).catch(err => {
+                Logger.Error("Failed to search by World Name for reason " + err)
+                res.end(APIMessage.craftAPIMessage(false, "Failed to Search by World Name"))
+            })
+        }
+        else
+            res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+    })
+
+    app.get(getAPIEndpoint() + "file/:userid/:fileid", function (req, res) {
+        let userid = req.params.userid
+        let fileid = req.params.fileid
+        let filetoken = ""
+        if(isUserBodyValid(userid, "string") && isUserBodyValid(fileid, "string")){
+            FileUploading.getFileById(userid, fileid).then(fileData => {
+                if(fileData){
+                    switch (fileData.FileMeta.UploadType) {
+                        case FileUploading.UploadType.Avatar:{
+                            Users.getAvatarIdFromFileId(userid, fileData).then(avatarMeta => {
+                                if(avatarMeta !== undefined){
+                                    if(ArrayTools.find(avatarMeta.Tokens, filetoken) !== undefined || avatarMeta.Publicity === Avatars.Publicity.Anyone){
+                                        res.attachment(fileData.FileMeta.FileName)
+                                        res.send(fileData.FileData.Body)
+                                    }
+                                    else
+                                        res.end(APIMessage.craftAPIMessage(false, "Failed to Authenticate FileToken"))
+                                }
+                                else
+                                    res.end(APIMessage.craftAPIMessage(false, "AvatarMeta does not exist!"))
+                            }).catch(err => {
+                                Logger.Error("Failed to get AvatarMeta for reason " + err)
+                                res.end(APIMessage.craftAPIMessage(false, "Failed to get AvatarMeta!"))
+                            })
+                            break
+                        }
+                        case FileUploading.UploadType.World:{
+                            Users.getWorldIdFromFileId(userid, fileData).then(worldMeta => {
+                                if(worldMeta !== undefined){
+                                    if(ArrayTools.find(worldMeta.Tokens, filetoken) !== undefined || worldMeta.Publicity === Worlds.Publicity.Anyone){
+                                        res.attachment(fileData.FileMeta.FileName)
+                                        res.send(fileData.FileData.Body)
+                                    }
+                                    else
+                                        res.end(APIMessage.craftAPIMessage(false, "Failed to Authenticate FileToken"))
+                                }
+                                else
+                                    res.end(APIMessage.craftAPIMessage(false, "WorldMeta does not exist!"))
+                            }).catch(err => {
+                                Logger.Error("Failed to get WorldMeta for reason " + err)
+                                res.end(APIMessage.craftAPIMessage(false, "Failed to get WorldMeta!"))
+                            })
+                            break
+                        }
+                        case FileUploading.UploadType.Media:
+                            res.attachment(fileData.FileMeta.FileName)
+                            res.send(fileData.FileData.Body)
+                            break
+                    }
+                }
+                else{
+                    res.end(APIMessage.craftAPIMessage(false, "Failed to get file!"))
+                }
+            }).catch(err => {
+                Logger.Error("Failed to get file for reason " + err)
+                res.end(APIMessage.craftAPIMessage(false, "Failed to get file!"))
+            })
+        }
+        else
+            res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+    })
+
     app.get(getAPIEndpoint() + "file/:userid/:fileid/:filetoken", function (req, res) {
         let userid = req.params.userid
         let fileid = req.params.fileid

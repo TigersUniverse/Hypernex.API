@@ -17,6 +17,7 @@ exports.LoadedConfig = {
             TLSCALocation: ""
         },
     },
+    MongoDBURL: "",
     SpacesInfo: {
         AccessKeyId: "",
         SecretAccessKey: "",

@@ -1,7 +1,6 @@
 const bcrypt = require("bcrypt")
 const date = require("date-and-time")
 
-const Social = require("./../Social/Social.js")
 const ID = require("./../Data/ID.js")
 const InviteCodes = require("./../Data/InviteCodes.js")
 const FileUploading = require("./../Data/FileUploading.js")
@@ -15,6 +14,9 @@ const PronounTools = require("./../Tools/PronounTools.js")
 let Database
 let OTP
 let URLTools
+let SearchDatabase
+
+let UsersCollection
 
 const USERDATA_DATABASE_PREFIX = "user/"
 
@@ -22,16 +24,16 @@ const MAX_DISPLAYNAME_LENGTH = 20
 const MAX_DESCRIPTION_LENGTH = 1000
 const ONLINE_TIMEFRAME = 300
 
-const USERNAME_TO_USERID_PREFIX = "username-userid/"
-const EMAIL_TO_USERID_PREFIX = "email-userid/"
 
 let serverConfig
 
-exports.init = function (ServerConfig, databaseModule, otpModule, urlToolsModule){
+exports.init = function (ServerConfig, databaseModule, otpModule, urlToolsModule, searchDatabaseModule, usersCollection){
     serverConfig = ServerConfig
     Database = databaseModule
     OTP = otpModule
     URLTools = urlToolsModule
+    SearchDatabase = searchDatabaseModule
+    UsersCollection = usersCollection
     Logger.Log("Initialized Users!")
     return this
 }
@@ -219,7 +221,7 @@ exports.createUser = function (username, password, email, inviteCode) {
                                 // TODO: Check if ID exists
                                 Database.doesKeyExist(USERDATA_DATABASE_PREFIX + id).then(exists => {
                                     if(!exists){
-                                        InviteCodes.validateInviteCode(inviteCode, serverConfig.LoadedConfig.SignupRules.RemoveCodeAfterUse).then(allow => {
+                                        InviteCodes.validateInviteCode(inviteCode).then(allow => {
                                             if(allow){
                                                 hashPassword(password).then(hashedPassword => {
                                                     let userdata = createUserData(id, username, hashedPassword, email)
@@ -227,49 +229,20 @@ exports.createUser = function (username, password, email, inviteCode) {
                                                         if(!reply)
                                                             reject(new Error("Failed to save user " + username + " to database!"))
                                                         else{
-                                                            // Lookup Cache
-                                                            Database.set(USERNAME_TO_USERID_PREFIX + username.toLowerCase(), {
-                                                                Id: id
-                                                            }).then(r => {
-                                                                if(r){
-                                                                    Database.set(EMAIL_TO_USERID_PREFIX + email.toLowerCase(), {
-                                                                        Id: id
-                                                                    }).then(r => {
-                                                                        if(r){
-                                                                            Social.initUser(userdata).then(r => {
-                                                                                if(!r)
-                                                                                    reject(new Error("Failed to create socialdata for unknown reason"))
-                                                                                else{
-                                                                                    InviteCodes.initUser(id).then(r => {
-                                                                                        if(!r)
-                                                                                            reject(new Error("Failed to create invitedata for unknown reason"))
-                                                                                        else{
-                                                                                            FileUploading.initUser(id).then(r => {
-                                                                                                if(r)
-                                                                                                    exec(userdata)
-                                                                                                else
-                                                                                                    reject(new Error("Failed to create FileUploading data for unknown reason"))
-                                                                                            })
-                                                                                        }
-                                                                                    })
-                                                                                }
-                                                                            }).catch(err => {
-                                                                                Logger.Error("Failed to create user " + username + " for reason " + err)
-                                                                                reject(err)
-                                                                            })
-                                                                        }
+                                                            FileUploading.initUser(id).then(r => {
+                                                                if(r)
+                                                                    SearchDatabase.createDocument(UsersCollection, {
+                                                                        Id: userdata.Id,
+                                                                        Username: userdata.Username,
+                                                                        Email: userdata.Email
+                                                                    }).then(sdr => {
+                                                                        if(!sdr)
+                                                                            reject(new Error("Failed to create SearchData for unknown reason"))
                                                                         else
-                                                                            reject(new Error("Failed to save Lookup Cache for user " + username))
-                                                                    }).catch(err => {
-                                                                        Logger.Error("Failed to create user " + username + " for reason " + err)
-                                                                        reject(err)
-                                                                    })
-                                                                }
+                                                                            exec(userdata)
+                                                                    }).catch(err => reject(err))
                                                                 else
-                                                                    reject(new Error("Failed to save Lookup Cache for user " + username))
-                                                            }).catch(err => {
-                                                                Logger.Error("Failed to create user " + username + " for reason " + err)
-                                                                reject(err)
+                                                                    reject(new Error("Failed to create FileUploading data for unknown reason"))
                                                             })
                                                         }
                                                     }).catch(err => {
@@ -416,17 +389,23 @@ exports.getUserDataFromUserId = function (userid) {
 // This should only be used by the server, never shared to a client!
 exports.getUserDataFromUsername = function (username) {
     return new Promise((exec, reject) => {
-        Database.get(USERNAME_TO_USERID_PREFIX + username.toLowerCase()).then(lookupcache => {
-            if(lookupcache){
-                exports.getUserDataFromUserId(lookupcache.Id).then(userdata => {
-                    if(userdata)
-                        exec(userdata)
-                    else
-                        reject(new Error("No user found under username " + username))
-                }).catch(err => reject(err))
+        SearchDatabase.find(UsersCollection, {"Username": username}).then(users => {
+            let found = false
+            for(let i in users){
+                let user = users[i]
+                if(user.Username.toLowerCase() === username.toLowerCase()){
+                    found = true
+                    let userid = user.Id
+                    exports.getUserDataFromUserId(userid).then(u => {
+                        if(u)
+                            exec(u)
+                        else
+                            reject(new Error("Failed to find userid of " + userid))
+                    }).catch(err => reject(err))
+                }
             }
-            else
-                reject(new Error("No LookupCache found under username " + username))
+            if(!found)
+                reject(new Error("Failed to find User with a Username of " + username))
         }).catch(err => reject(err))
     })
 }
@@ -440,17 +419,23 @@ exports.isUsernameRegistered = function (username) {
 // This should only be used by the server, never shared to a client!
 exports.getUserDataFromEmail = function (email) {
     return new Promise((exec, reject) => {
-        Database.get(EMAIL_TO_USERID_PREFIX + email.toLowerCase()).then(lookupcache => {
-            if(lookupcache){
-                exports.getUserDataFromUserId(lookupcache.Id).then(userdata => {
-                    if(userdata)
-                        exec(userdata)
-                    else
-                        reject(new Error("No user found under email " + email))
-                }).catch(err => reject(err))
+        SearchDatabase.find(UsersCollection, {"Email": email}).then(users => {
+            let found = false
+            for(let i in users){
+                let user = users[i]
+                if(user.Username.toLowerCase() === email.toLowerCase()){
+                    found = true
+                    let userid = user.Id
+                    exports.getUserDataFromUserId(userid).then(u => {
+                        if(u)
+                            exec(u)
+                        else
+                            reject(new Error("Failed to find userid of " + userid))
+                    }).catch(err => reject(err))
+                }
             }
-            else
-                reject(new Error("No LookupCache found under email " + email))
+            if(!found)
+                reject(new Error("Failed to find User with an Email of " + email))
         }).catch(err => reject(err))
     })
 }
@@ -458,6 +443,19 @@ exports.getUserDataFromEmail = function (email) {
 exports.isEmailRegistered = function (email) {
     return new Promise(exec => {
         exports.getUserDataFromEmail(email.toLowerCase()).then(r => exec(true)).catch(err => exec(false))
+    })
+}
+
+exports.safeSearchUsername = function (username) {
+    return new Promise((exec, reject) => {
+        SearchDatabase.find(UsersCollection, {"Username": {$regex: `.*${username}.*`, $options: 'i'}}).then(users => {
+            let candidates = []
+            for(let i in users){
+                let user = users[i]
+                candidates.push(user.Id)
+            }
+            exec(candidates)
+        }).catch(err => reject(err))
     })
 }
 
@@ -774,32 +772,24 @@ exports.changeEmail = function (userid, tokenContent, newEmail) {
                                 if(r)
                                     reject(new Error("Email already used!"))
                                 else{
-                                    Database.delete(EMAIL_TO_USERID_PREFIX + userdata.Email).then(er => {
-                                        if(er){
-                                            Database.set(EMAIL_TO_USERID_PREFIX + newEmail.toLowerCase(), {
-                                                Id: userdata.Id
-                                            }).then(ser => {
-                                                if(ser){
-                                                    let nud = userdata
-                                                    nud.isEmailVerified = false
-                                                    nud.emailVerificationToken = ""
-                                                    nud.Email = newEmail
-                                                    if(nud.Rank < exports.Rank.Verified)
-                                                        nud.Rank = exports.Rank.Incompleter
-                                                    setUserData(nud).then(rr => {
-                                                        if(rr)
-                                                            exec(true)
-                                                        else
-                                                            exec(false)
-                                                    }).catch(err => exec(false))
-                                                }
+                                    SearchDatabase.updateDocument(UsersCollection, {"Id": userdata.Id}, {$set: {"Email": newEmail}}).then(rr => {
+                                        if(rr){
+                                            let nud = userdata
+                                            nud.isEmailVerified = false
+                                            nud.emailVerificationToken = ""
+                                            nud.Email = newEmail
+                                            if(nud.Rank < exports.Rank.Verified)
+                                                nud.Rank = exports.Rank.Incompleter
+                                            setUserData(nud).then(rr => {
+                                                if(rr)
+                                                    exec(true)
                                                 else
                                                     exec(false)
-                                            }).catch(err => exec(false))
+                                            }).catch(err => reject(err))
                                         }
                                         else
-                                            exec(false)
-                                    }).catch(err => exec(false))
+                                            reject(new Error("Failed to update in SearchDatabase"))
+                                    }).catch(err => reject(err))
                                 }
                             })
                         }
@@ -994,10 +984,18 @@ function isValidBio(bio){
             if(bio.Description.length <= MAX_DESCRIPTION_LENGTH)
                 descriptionValid = true
         let pfpURLValid = false
-        if((typeof bio.PfpURL === 'string' || bio.PfpURL instanceof String) && URLTools.isURLAllowed(bio.PfpURL))
+        if(bio.PfpURL !== undefined && bio.PfpURL !== null && bio.PfpURL !== ""){
+            if((typeof bio.PfpURL === 'string' || bio.PfpURL instanceof String) && URLTools.isURLAllowed(bio.PfpURL))
+                pfpURLValid = true
+        }
+        else
             pfpURLValid = true
         let bannerURLValid = false
-        if((typeof bio.BannerURL === 'string' || bio.BannerURL instanceof String) && URLTools.isURLAllowed(bio.BannerURL))
+        if(bio.BannerURL !== undefined && bio.BannerURL !== null && bio.BannerURL !== ""){
+            if((typeof bio.BannerURL === 'string' || bio.BannerURL instanceof String) && URLTools.isURLAllowed(bio.BannerURL))
+                bannerURLValid = true
+        }
+        else
             bannerURLValid = true
         let displayNameValid = false
         if(typeof bio.DisplayName === 'string' || bio.DisplayName instanceof String)
@@ -1699,117 +1697,6 @@ exports.removeWorld = function (userid, tokenContent, avatarId) {
                             else
                                 exec(false)
                         }).catch(() => exec(false))
-                    }
-                    else
-                        exec(false)
-                }).catch(() => exec(false))
-            }
-            else
-                exec(false)
-        }).catch(() => exec(false))
-    })
-}
-
-// Moderator Section
-// These functions should be called AFTER authentication
-
-function runModeratorCommand(command){
-    return new Promise(exec => {
-        let args = command.split(' ')
-        if(args <= 0)
-            exec(false)
-        else{
-            let cmd = args[0]
-            switch (cmd) {
-                case "warnuser": {
-                    let userid = args[1]
-                    let warnreason = args[2]
-                    let warndescription = args[3]
-                    if(userid === undefined || warnreason === undefined || warndescription === undefined){
-                        exec(false)
-                    } else{
-                        exports.getUserDataFromUserId(userid).then(userdata => {
-                            if(userdata){
-                                let nud = userdata
-                                nud.WarnStatus.isWarned = true
-                                nud.WarnStatus.TimeWarned = DateTools.getUnixTime(new Date())
-                                nud.WarnStatus.WarnReason = warnreason
-                                nud.WarnStatus.WarnDescription = warndescription
-                                nud.WarnCount = nud.WarnCount + 1
-                                setUserData(nud).then(r => {
-                                    if(r)
-                                        exec(true)
-                                    else
-                                        exec(false)
-                                }).catch(serr => {
-                                    Logger.Error("Failed to run Moderator Command " + cmd + " with error " + serr)
-                                    exec(false)
-                                })
-                            }
-                            else
-                                exec(false)
-                        }).catch(err => {
-                            Logger.Error("Failed to run Moderator Command " + cmd + " with error " + err)
-                            exec(false)
-                        })
-                    }
-                }
-                case "banuser": {
-                    let userid = args[1]
-                    let hours = args[2]
-                    let banreason = args[3]
-                    let bandescription = args[4]
-                    if (userid === undefined || (hours === undefined || isNaN(hours)) || banreason === undefined || bandescription === undefined) {
-                        exec(false)
-                    } else {
-                        exports.getUserDataFromUserId(userid).then(userdata => {
-                            if (userdata){
-                                let nud = userdata
-                                let banstatus = {
-                                    isBanned: true,
-                                    BanBegin: DateTools.getUnixTime(new Date()),
-                                    BanEnd: DateTools.getUnixTime(date.addHours(new Date(), hours)),
-                                    BanReason: banreason,
-                                    BanDescription: bandescription
-                                }
-                                nud.BanStatus = banstatus
-                                nud.BanCount = nud.BanCount + 1
-                                setUserData(nud).then(r => {
-                                    if(r)
-                                        exec(true)
-                                    else
-                                        exec(false)
-                                }).catch(serr => {
-                                    Logger.Error("Failed to run Moderator Command " + cmd + " with error " + serr)
-                                    exec(false)
-                                })
-                            }
-                            else
-                                exec(false)
-                        }).catch(err => {
-                            Logger.Error("Failed to run Moderator Command " + cmd + " with error " + err)
-                            exec(false)
-                        })
-                    }
-                }
-            }
-        }
-    })
-}
-
-exports.runModeratorCommand = function (username, tokenContent, command) {
-    return new Promise(exec => {
-        exports.isUserTokenValid(username, tokenContent).then(validToken => {
-            if(validToken){
-                exports.getUserDataFromUsername(username).then(userdata => {
-                    if(userdata){
-                        if(userdata.Rank >= exports.Rank.Moderator){
-                            runModeratorCommand(command).then(r => {
-                                exec(r)
-                            }).catch(() => exec(false))
-                        }
-                        else
-                            exec(false)
                     }
                     else
                         exec(false)

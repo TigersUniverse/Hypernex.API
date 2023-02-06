@@ -11,12 +11,17 @@ let serverConfig
 let Users
 let Database
 let URLTools
+let SearchDatabase
 
-exports.init = function (ServerConfig, usersModule, databaseModule, urlToolsModule){
+let AvatarsCollection
+
+exports.init = function (ServerConfig, usersModule, databaseModule, urlToolsModule, searchDatabaseModule, avatarsCollection){
     serverConfig = ServerConfig
     Users = usersModule
     Database = databaseModule
     URLTools = urlToolsModule
+    SearchDatabase = searchDatabaseModule
+    AvatarsCollection = avatarsCollection
     Logger.Log("Initialized Avatars!")
     return this
 }
@@ -108,9 +113,15 @@ exports.handleFileUpload = function (userid, tokenContent, fileid, clientAvatarM
 
 function setAvatarMeta(avatarMeta){
     return new Promise((exec, reject) => {
-        Database.set(AVATARDATA_DATABASE_PREFIX + avatarMeta.Id, avatarMeta).then(r => {
-            if(r)
-                exec(r)
+        SearchDatabase.updateDocument(AvatarsCollection, {"Id": avatarMeta.Id}, {$set: avatarMeta}).then(r => {
+            if(r){
+                Database.set(AVATARDATA_DATABASE_PREFIX + avatarMeta.Id, avatarMeta).then(rr => {
+                    if(rr)
+                        exec(rr)
+                    else
+                        exec(false)
+                }).catch(err => reject(err))
+            }
             else
                 exec(false)
         }).catch(err => reject(err))
@@ -164,6 +175,20 @@ function isValidAvatarMeta(ownerid, avatarMeta){
         catch(e){
             exec(false)
         }
+    })
+}
+
+exports.safeSearchAvatar = function (name) {
+    return new Promise((exec, reject) => {
+        SearchDatabase.find(AvatarsCollection, {"Name": {$regex: `.*${name}.*`, $options: 'i'}}).then(avatars => {
+            let candidates = []
+            for(let i in avatars){
+                let avatar = avatars[i]
+                if(avatar.Publicity === exports.Publicity.Anyone)
+                    candidates.push(avatar.Id)
+            }
+            exec(candidates)
+        }).catch(err => reject(err))
     })
 }
 
