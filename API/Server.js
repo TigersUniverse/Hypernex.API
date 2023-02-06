@@ -744,7 +744,7 @@ exports.initapp = function (usersModule, serverConfig, fileUploadModule, avatars
         }
     })
 
-    app.get(getAPIEndpoint() + "search/username/:username", function (req, res) {
+    app.get(getAPIEndpoint() + "search/user/:username", function (req, res) {
         let username = req.params.username
         if(isUserBodyValid(username, "string")){
             Users.safeSearchUsername(username).then(arr => {
