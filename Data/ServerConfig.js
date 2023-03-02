@@ -32,6 +32,7 @@ exports.LoadedConfig = {
         TLSKeyLocation: "",
         TLSCertificateLocation: ""
     },
+    SocketPort: 2096,
     WebRoot: "html/",
     MailGun: {
         Username: "",
@@ -47,7 +48,9 @@ exports.LoadedConfig = {
         GlobalInviteCodes: [],
         // This is only for User Invite Codes, not global ones
         RemoveCodeAfterUse: true
-    }
+    },
+    GameServerTokens: [],
+    AllowAnyGameServer: false
 }
 
 exports.init = function (){

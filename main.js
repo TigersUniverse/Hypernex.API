@@ -32,6 +32,8 @@ if(!ServerConfig.LoadedConfig.UseHTTPS)
     Logger.Warning("HTTPS is disabled, this should not be done for production!")
 if(ServerConfig.LoadedConfig.TrustAllDomains)
     Logger.Warning("TrustAllDomains is enabled, this should not be done for production!")
+if(ServerConfig.LoadedConfig.AllowAnyGameServer)
+    Logger.Warning("AllowAnyGameServer is enabled! Any server can pose as a game server, this may be dangerous!")
 
 // Database
 let databaseUsername
