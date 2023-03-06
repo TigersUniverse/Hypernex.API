@@ -744,6 +744,108 @@ exports.initapp = function (usersModule, serverConfig, fileUploadModule, avatars
         }
     })
 
+    app.post(getAPIEndpoint() + "remove/avatar", function (req, res) {
+        let userid = req.body.userid
+        let avatarid = req.body.avatarid
+        let tokenContent = req.body.tokenContent
+        if(isUserBodyValid(userid, "string") && isUserBodyValid(avatarid, "string") && isUserBodyValid(tokenContent, "string")){
+            Users.removeAvatar(userid, tokenContent, avatarid).then(r => {
+                if(r){
+                    Avatars.deleteAvatar(avatarid).then(rr => {
+                        if(rr)
+                            res.end(APIMessage.craftAPIMessage(true, "Removed avatar!"))
+                        else
+                            res.end(APIMessage.craftAPIMessage(true, "Failed to remove avatar!"))
+                    }).catch(err => {
+                        Logger.Error("Failed to remove avatar for reason " + err)
+                        res.end(APIMessage.craftAPIMessage(true, "Failed to remove avatar!"))
+                    })
+                }
+                else
+                    res.end(APIMessage.craftAPIMessage(true, "Failed to remove avatar!"))
+            }).catch(err => {
+                Logger.Error("Failed to remove avatar for reason " + err)
+                res.end(APIMessage.craftAPIMessage(true, "Failed to remove avatar!"))
+            })
+        }
+        else
+            res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+    })
+
+    app.post(getAPIEndpoint() + "remove/world", function (req, res) {
+        let userid = req.body.userid
+        let worldid = req.body.worldid
+        let tokenContent = req.body.tokenContent
+        if(isUserBodyValid(userid, "string") && isUserBodyValid(worldid, "string") && isUserBodyValid(tokenContent, "string")){
+            Users.removeWorld(userid, tokenContent, worldid).then(r => {
+                if(r){
+                    Worlds.deleteWorld(worldid).then(rr => {
+                        if(rr)
+                            res.end(APIMessage.craftAPIMessage(true, "Removed world!"))
+                        else
+                            res.end(APIMessage.craftAPIMessage(true, "Failed to remove world!"))
+                    }).catch(err => {
+                        Logger.Error("Failed to remove world for reason " + err)
+                        res.end(APIMessage.craftAPIMessage(true, "Failed to remove world!"))
+                    })
+                }
+                else
+                    res.end(APIMessage.craftAPIMessage(true, "Failed to remove world!"))
+            }).catch(err => {
+                Logger.Error("Failed to remove world for reason " + err)
+                res.end(APIMessage.craftAPIMessage(true, "Failed to remove world!"))
+            })
+        }
+        else
+            res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+    })
+
+    app.post(getAPIEndpoint() + "remove/file", function (req, res) {
+        let userid = req.body.userid
+        let fileid = req.body.fileid
+        let tokenContent = req.body.tokenContent
+        if(isUserBodyValid(userid, "string") && isUserBodyValid(fileid, "string") && isUserBodyValid(tokenContent, "string")){
+            FileUploading.doesFileIdExist(userid, fileid).then(r => {
+                if(r){
+                    FileUploading.getFileById(userid, fileid).then(file => {
+                        if(file !== undefined && file.UserId === userid && file.UploadType === FileUploading.UploadType.Media){
+                            Users.isUserIdTokenValid(userid, tokenContent).then(validToken => {
+                                if(validToken){
+                                    FileUploading.DeleteFile(userid, fileid).then(rr => {
+                                        if(rr)
+                                            res.end(APIMessage.craftAPIMessage(true, "Deleted file!"))
+                                        else
+                                            res.end(APIMessage.craftAPIMessage(true, "Failed to delete file!"))
+                                    }).catch(err => {
+                                        Logger.Error("Failed to delete file for reason " + err)
+                                        res.end(APIMessage.craftAPIMessage(false, "Failed to delete file!"))
+                                    })
+                                }
+                                else
+                                    res.end(APIMessage.craftAPIMessage(true, "Failed to delete file!"))
+                            }).catch(err => {
+                                Logger.Error("Failed to delete file for reason " + err)
+                                res.end(APIMessage.craftAPIMessage(false, "Failed to delete file!"))
+                            })
+                        }
+                        else
+                            res.end(APIMessage.craftAPIMessage(true, "Failed to delete file!"))
+                    }).catch(err => {
+                        Logger.Error("Failed to delete file for reason " + err)
+                        res.end(APIMessage.craftAPIMessage(false, "Failed to delete file!"))
+                    })
+                }
+                else
+                    res.end(APIMessage.craftAPIMessage(true, "Failed to delete file!"))
+            }).catch(err => {
+                Logger.Error("Failed to delete file for reason " + err)
+                res.end(APIMessage.craftAPIMessage(false, "Failed to delete file!"))
+            })
+        }
+        else
+            res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+    })
+
     app.get(getAPIEndpoint() + "search/user/:username", function (req, res) {
         let username = req.params.username
         if(isUserBodyValid(username, "string")){
@@ -795,7 +897,6 @@ exports.initapp = function (usersModule, serverConfig, fileUploadModule, avatars
     app.get(getAPIEndpoint() + "file/:userid/:fileid", function (req, res) {
         let userid = req.params.userid
         let fileid = req.params.fileid
-        let filetoken = ""
         if(isUserBodyValid(userid, "string") && isUserBodyValid(fileid, "string")){
             FileUploading.getFileById(userid, fileid).then(fileData => {
                 if(fileData){
@@ -803,7 +904,7 @@ exports.initapp = function (usersModule, serverConfig, fileUploadModule, avatars
                         case FileUploading.UploadType.Avatar:{
                             Users.getAvatarIdFromFileId(userid, fileData).then(avatarMeta => {
                                 if(avatarMeta !== undefined){
-                                    if(ArrayTools.find(avatarMeta.Tokens, filetoken) !== undefined || avatarMeta.Publicity === Avatars.Publicity.Anyone){
+                                    if(avatarMeta.Publicity === Avatars.Publicity.Anyone){
                                         res.attachment(fileData.FileMeta.FileName)
                                         res.send(fileData.FileData.Body)
                                     }
@@ -910,6 +1011,44 @@ exports.initapp = function (usersModule, serverConfig, fileUploadModule, avatars
             }).catch(err => {
                 Logger.Error("Failed to get file for reason " + err)
                 res.end(APIMessage.craftAPIMessage(false, "Failed to get file!"))
+            })
+        }
+        else
+            res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+    })
+
+    app.get(getAPIEndpoint() + "meta/avatar/:avatarid", function (req, res) {
+        let avatarid = req.params.avatarid
+        if(isUserBodyValid(avatarid, "string")){
+            Avatars.getAvatarMetaById(avatarid).then(meta => {
+                if(meta !== undefined){
+                    res.end(APIMessage.craftAPIMessage(true, "Got avatar meta", {
+                        Meta: meta
+                    }))
+                }
+                else
+                    res.end(APIMessage.craftAPIMessage(false, "Failed to get avatar meta!"))
+            }).catch(e => {
+                Logger.Error("Failed to get avatar meta for reason " + e)
+                res.end(APIMessage.craftAPIMessage(false, "Failed to get avatar meta!"))
+            })
+        }
+    })
+
+    app.get(getAPIEndpoint() + "meta/world/:avatarid", function (req, res) {
+        let worldid = req.params.worldid
+        if(isUserBodyValid(worldid, "string")){
+            Worlds.getWorldMetaById(worldid).then(meta => {
+                if(meta !== undefined){
+                    res.end(APIMessage.craftAPIMessage(true, "Got world meta", {
+                        Meta: meta
+                    }))
+                }
+                else
+                    res.end(APIMessage.craftAPIMessage(false, "Failed to get world meta!"))
+            }).catch(e => {
+                Logger.Error("Failed to get world meta for reason " + e)
+                res.end(APIMessage.craftAPIMessage(false, "Failed to get world meta!"))
             })
         }
         else

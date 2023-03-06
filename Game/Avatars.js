@@ -128,6 +128,29 @@ function setAvatarMeta(avatarMeta){
     })
 }
 
+exports.deleteAvatar = function (avatarid) {
+    return new Promise((exec, reject) => {
+        exports.doesAvatarExist(avatarid).then(exists => {
+            if(exists){
+                SearchDatabase.removeDocument(AvatarsCollection, {"Id": avatarid}).then(r => {
+                    if(r){
+                        Database.delete(AVATARDATA_DATABASE_PREFIX + avatarid).then(rr => {
+                            if(rr)
+                                exec(true)
+                            else
+                                exec(false)
+                        }).catch(err => reject(err))
+                    }
+                    else
+                        exec(false)
+                }).catch(err => reject(err))
+            }
+            else
+                exec(false)
+        }).catch(err => reject(err))
+    })
+}
+
 function isValidAvatarMeta(ownerid, avatarMeta){
     return new Promise((exec, reject) => {
         try{

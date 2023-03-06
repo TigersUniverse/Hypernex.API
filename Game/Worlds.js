@@ -129,6 +129,29 @@ function setWorldMeta(worldMeta){
     })
 }
 
+exports.deleteWorld = function (worldid) {
+    return new Promise((exec, reject) => {
+        exports.doesWorldExist(worldid).then(exists => {
+            if(exists){
+                SearchDatabase.removeDocument(WorldsCollection, {"Id": worldid}).then(r => {
+                    if(r){
+                        Database.delete(WORLDDATA_DATABASE_PREFIX + worldid).then(rr => {
+                            if(rr)
+                                exec(true)
+                            else
+                                exec(false)
+                        }).catch(err => reject(err))
+                    }
+                    else
+                        exec(false)
+                }).catch(err => reject(err))
+            }
+            else
+                exec(false)
+        }).catch(err => reject(err))
+    })
+}
+
 function isValidAvatarMeta(ownerid, worldMeta){
     return new Promise(exec => {
         try{

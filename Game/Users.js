@@ -1684,13 +1684,13 @@ exports.getWorldIdFromFileId = function (userid, fileId) {
     })
 }
 
-exports.removeWorld = function (userid, tokenContent, avatarId) {
+exports.removeWorld = function (userid, tokenContent, worldId) {
     return new Promise(exec => {
         exports.isUserIdTokenValid(userid, tokenContent).then(validToken => {
             if(validToken){
                 exports.getUserDataFromUserId(userid).then(userdata => {
                     if(userdata){
-                        userdata.Worlds = ArrayTools.customFilterArray(userdata.World, item => item.Id !== avatarId)
+                        userdata.Worlds = ArrayTools.customFilterArray(userdata.Worlds, item => item.Id !== worldId)
                         setUserData(userdata).then(r => {
                             if(r)
                                 exec(true)
