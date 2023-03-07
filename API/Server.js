@@ -1035,7 +1035,7 @@ exports.initapp = function (usersModule, serverConfig, fileUploadModule, avatars
         }
     })
 
-    app.get(getAPIEndpoint() + "meta/world/:avatarid", function (req, res) {
+    app.get(getAPIEndpoint() + "meta/world/:worldid", function (req, res) {
         let worldid = req.params.worldid
         if(isUserBodyValid(worldid, "string")){
             Worlds.getWorldMetaById(worldid).then(meta => {

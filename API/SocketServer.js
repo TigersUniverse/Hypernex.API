@@ -3,16 +3,19 @@ const http = require("http")
 const https = require("https")
 const ws = require("ws")
 
+const ID = require("./../Data/ID.js")
+const SocketMessage = require("./SocketMessage.js")
 const Logger = require("./../Logging/Logger.js")
 
 const app = express()
 
 let ServerConfig
 let Users
+let Worlds
 
 let server
 
-exports.Init = function (serverConfig, usersModule, ssl) {
+exports.Init = function (serverConfig, usersModule, worldsModule, ssl) {
     ServerConfig = serverConfig
     Users = usersModule
     if(ServerConfig.LoadedConfig.UseHTTPS)
@@ -30,7 +33,11 @@ exports.Init = function (serverConfig, usersModule, ssl) {
 function createSocketMeta(){
     return {
         isVerified: false,
+        // Game Server Stuff
+        gameServerId: undefined,
         serverTokenContent: undefined,
+        instances: undefined,
+        // User Stuff
         userId: undefined,
         tokenContent: undefined
     }
@@ -55,6 +62,68 @@ function removeSocket(socket){
         return obj
     }, {})
     socket.destroy()
+}
+
+function getSocketFromUserId(userid){
+    for (let [key, value] of Object.entries(Sockets)){
+        if(value.userId === userid)
+            return key
+    }
+    return undefined
+}
+
+function broadcastToUsers(message){
+    for (let [key, value] of Object.entries(Sockets)){
+        if(value.userId !== undefined && value.isVerified)
+            key.send(message)
+    }
+    return undefined
+}
+
+function getSocketFromGameServerId(gameserverid){
+    for (let [key, value] of Object.entries(Sockets)){
+        if(value.gameServerId === gameserverid)
+            return key
+    }
+    return undefined
+}
+
+function broadcastToGameServers(message){
+    for (let [key, value] of Object.entries(Sockets)){
+        if(value.gameServerId !== undefined && value.isVerified)
+            key.send(message)
+    }
+    return undefined
+}
+
+let Instances = []
+
+function getInstanceFromGameServerInstanceId(gameServerId, instanceId){
+    for(let i = 0; i < Instances.length; i++){
+        let instance = Instances[i]
+        if(instance.gameServerId === gameServerId && instance.Id === instanceId)
+            return instance
+    }
+    return undefined
+}
+
+function createInstanceMeta(gameServerId, instanceId, worldId, creatorId){
+    return new Promise((exec, reject) => {
+        Worlds.doesWorldExist(worldId).then(exists => {
+            if(exists !== undefined){
+                let meta = {
+                    GameServerId: gameServerId,
+                    InstanceId: instanceId,
+                    WorldId: worldId,
+                    InstanceCreatorId: creatorId,
+                    Moderators: []
+                }
+                exec(meta)
+            }
+            else
+                exec(false)
+        })
+    })
 }
 
 function onSocketConnect(socket){
@@ -115,6 +184,9 @@ function onSocketConnect(socket){
                 if(!meta.isVerified){
                     if(ServerConfig.LoadedConfig.AllowAnyGameServer || ServerConfig.LoadedConfig.GameServerTokens.indexOf(parsedMessage.serverTokenContent) >= 0){
                         meta.isVerified = true
+                        meta.gameServerId = ID.new(ID.IDTypes.GameServer)
+                        while(getSocketFromGameServerId(meta.gameServerId) !== undefined)
+                            meta.gameServerId = ID.new(ID.IDTypes.GameServer)
                         meta.serverTokenContent = parsedMessage.serverTokenContent
                         updateSocketMeta(socket, meta)
                         postMessageHandle(socket, meta, parsedMessage, true).then(newMeta => {
@@ -147,7 +219,22 @@ function postMessageHandle(socket, meta, parsedMessage, isServer){
         }
         else{
             switch (parsedMessage.message.toLowerCase()) {
-
+                case "sendinvite":{
+                    let targetUserId = parsedMessage.args.targetUserId
+                    let gameServerId = parsedMessage.args.gameServerId
+                    let toInstanceId = parsedMessage.args.toInstanceId
+                    let targetSocket = getSocketFromUserId(targetUserId)
+                    let gameServerSocket = getSocketFromGameServerId(gameServerId)
+                    let instanceMeta = getInstanceFromGameServerInstanceId(gameServerId, toInstanceId)
+                    if(targetSocket !== undefined && gameServerSocket !== undefined && instanceMeta !== undefined){
+                        targetSocket.send(SocketMessage.craftSocketMessage("gotinvite", {
+                            fromUserId: meta.userId,
+                            toGameServerId: gameServerId,
+                            toInstanceId: toInstanceId
+                        }))
+                    }
+                    break
+                }
             }
         }
     })

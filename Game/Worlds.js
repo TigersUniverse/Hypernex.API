@@ -59,7 +59,7 @@ exports.handleFileUpload = function (userid, tokenContent, fileid, clientWorldMe
     return new Promise((exec, reject) => {
         Users.isUserIdTokenValid(userid, tokenContent).then(validToken => {
             if(validToken){
-                isValidAvatarMeta(userid, clientWorldMeta).then(validClientMeta => {
+                isValidWorldMeta(userid, clientWorldMeta).then(validClientMeta => {
                     if(validClientMeta){
                         let worldMeta = clientWorldMeta
                         let id = ID.new(ID.IDTypes.World)
@@ -152,7 +152,7 @@ exports.deleteWorld = function (worldid) {
     })
 }
 
-function isValidAvatarMeta(ownerid, worldMeta){
+function isValidWorldMeta(ownerid, worldMeta){
     return new Promise(exec => {
         try{
             let allowed = true
