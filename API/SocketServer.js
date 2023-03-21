@@ -5,6 +5,7 @@ const ws = require("ws")
 
 const ID = require("./../Data/ID.js")
 const SocketMessage = require("./SocketMessage.js")
+const ArrayTools = require("./../Tools/ArrayTools.js")
 const Logger = require("./../Logging/Logger.js")
 
 const app = express()
@@ -107,7 +108,7 @@ function getInstanceFromGameServerInstanceId(gameServerId, instanceId){
     return undefined
 }
 
-function createInstanceMeta(gameServerId, instanceId, worldId, creatorId){
+function createInstanceMeta(gameServerId, instanceId, worldId, creatorId, instancePublicity){
     return new Promise((exec, reject) => {
         Worlds.doesWorldExist(worldId).then(exists => {
             if(exists !== undefined){
@@ -115,8 +116,11 @@ function createInstanceMeta(gameServerId, instanceId, worldId, creatorId){
                     GameServerId: gameServerId,
                     InstanceId: instanceId,
                     WorldId: worldId,
+                    InstancePublicity: exports.InstancePublicity.getInstanceFromNumber(instancePublicity),
                     InstanceCreatorId: creatorId,
-                    Moderators: []
+                    InvitedUsers: [],
+                    ConnectedUsers: [creatorId],
+                    Moderators: [creatorId]
                 }
                 exec(meta)
             }
@@ -124,6 +128,85 @@ function createInstanceMeta(gameServerId, instanceId, worldId, creatorId){
                 exec(false)
         })
     })
+}
+
+function userJoinedInstance(gameServerId, instanceId, worldId, userId){
+    return new Promise((exec, reject) => {
+        let instance = getInstanceFromGameServerInstanceId(gameServerId, instanceId)
+        if(instance === undefined){
+            exec(false)
+            return
+        }
+        let user = getSocketFromUserId(userId)
+        if(user === undefined){
+            exec(false)
+            return
+        }
+        if(ArrayTools.find(instance.ConnectedUsers, userId)){
+            exec(false)
+            return
+        }
+        switch(instance.InstancePublicity){
+            case exports.InstancePublicity.ClosedRequest:
+            case exports.InstancePublicity.OpenRequest:
+                if(ArrayTools.find(instance.InvitedUsers, userId) !== undefined || ArrayTools.find(instance.Moderators, userId) || instanceId.InstanceCreatorId === userId){
+                    instance.ConnectedUsers.push(userId)
+                    exec(true)
+                }
+                break
+            case exports.InstancePublicity.Friends:
+                Users.getUserDataFromUserId(instance.InstanceCreatorId).then(userData => {
+                    if(userData !== undefined){
+                        if(ArrayTools.find(userData.Friends, userId) !== undefined){
+                            instance.ConnectedUsers.push(userId)
+                            exec(true)
+                        }
+                        else
+                            exec(false)
+                    }
+                    else
+                        exec(false)
+                }).catch(err => reject(err))
+                break
+            case exports.InstancePublicity.Acquaintances:
+                let c = true
+                for (let i = 0; i < instance.ConnectedUsers.length; i++){
+                    if(c){
+                        let instanceUserId = instance.ConnectedUsers[i]
+                        Users.getUserDataFromUserId(instanceUserId).then(userData => {
+                            if(userData !== undefined){
+                                if(ArrayTools.find(userData.Friends, userId) !== undefined){
+                                    instance.ConnectedUsers.push(userId)
+                                    exec(true)
+                                    c = false
+                                }
+                                else
+                                    exec(false)
+                            }
+                            else
+                                exec(false)
+                        }).catch(err => reject(err))
+                    }
+                }
+                break
+            case exports.InstancePublicity.Anyone:
+                instance.ConnectedUsers.push(userId)
+                exec(true)
+                break
+        }
+    })
+}
+
+function userLeftInstance(gameServerId, instanceId, worldId, userId){
+
+}
+
+function addUserToInstanceModerator(gameServerId, instanceId, userId){
+
+}
+
+function removeUserFromInstanceModerator(gameServerId, instanceId, userId){
+
 }
 
 function onSocketConnect(socket){
@@ -238,4 +321,28 @@ function postMessageHandle(socket, meta, parsedMessage, isServer){
             }
         }
     })
+}
+
+exports.InstancePublicity = {
+    Anyone: 0,
+    Acquaintances: 1,
+    Friends: 2,
+    OpenRequest: 3,
+    ClosedRequest: 4,
+    getInstanceFromNumber: function (number) {
+        switch (number) {
+            case 0:
+                return exports.InstancePublicity.Anyone
+            case 1:
+                return exports.InstancePublicity.Acquaintances
+            case 2:
+                return exports.InstancePublicity.Friends
+            case 3:
+                return exports.InstancePublicity.OpenRequest
+            case 4:
+                return exports.InstancePublicity.ClosedRequest
+            default:
+                return exports.InstancePublicity.ClosedRequest
+        }
+    }
 }
