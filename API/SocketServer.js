@@ -410,6 +410,7 @@ function onSocketConnect(socket){
     })
 }
 
+// TODO: User create instance, use createInstanceMeta(), and instance request broadcasting
 function postMessageHandle(socket, meta, parsedMessage, isServer){
     return new Promise((exec, reject) => {
         if(isServer){
