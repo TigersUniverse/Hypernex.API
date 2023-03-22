@@ -89,6 +89,21 @@ function getSocketFromGameServerId(gameserverid){
     return undefined
 }
 
+function getGameServerFromId(gameServerId) {
+    for (let [key, value] of Object.entries(Sockets)){
+        if(value.userId === undefined && value.isVerified && value.gameServerId === gameServerId)
+            return value
+    }
+    return undefined
+}
+
+function isGameServerTokenValid(gameServerId, gameServerToken){
+    let gameServerMeta = getGameServerFromId(gameServerId)
+    if(gameServerMeta === undefined)
+        return false
+    return gameServerMeta.gameServerToken === gameServerToken
+}
+
 function broadcastToGameServers(message){
     for (let [key, value] of Object.entries(Sockets)){
         if(value.gameServerId !== undefined && value.isVerified)
@@ -119,6 +134,7 @@ function createInstanceMeta(gameServerId, instanceId, worldId, creatorId, instan
                     InstancePublicity: exports.InstancePublicity.getInstanceFromNumber(instancePublicity),
                     InstanceCreatorId: creatorId,
                     InvitedUsers: [],
+                    BannedUsers: [],
                     ConnectedUsers: [creatorId],
                     Moderators: [creatorId]
                 }
@@ -130,27 +146,12 @@ function createInstanceMeta(gameServerId, instanceId, worldId, creatorId, instan
     })
 }
 
-function userJoinedInstance(gameServerId, instanceId, worldId, userId){
+function isUserWelcomeInInstance(instance, userId){
     return new Promise((exec, reject) => {
-        let instance = getInstanceFromGameServerInstanceId(gameServerId, instanceId)
-        if(instance === undefined){
-            exec(false)
-            return
-        }
-        let user = getSocketFromUserId(userId)
-        if(user === undefined){
-            exec(false)
-            return
-        }
-        if(ArrayTools.find(instance.ConnectedUsers, userId)){
-            exec(false)
-            return
-        }
         switch(instance.InstancePublicity){
             case exports.InstancePublicity.ClosedRequest:
             case exports.InstancePublicity.OpenRequest:
                 if(ArrayTools.find(instance.InvitedUsers, userId) !== undefined || ArrayTools.find(instance.Moderators, userId) || instanceId.InstanceCreatorId === userId){
-                    instance.ConnectedUsers.push(userId)
                     exec(true)
                 }
                 break
@@ -158,7 +159,6 @@ function userJoinedInstance(gameServerId, instanceId, worldId, userId){
                 Users.getUserDataFromUserId(instance.InstanceCreatorId).then(userData => {
                     if(userData !== undefined){
                         if(ArrayTools.find(userData.Friends, userId) !== undefined){
-                            instance.ConnectedUsers.push(userId)
                             exec(true)
                         }
                         else
@@ -176,7 +176,6 @@ function userJoinedInstance(gameServerId, instanceId, worldId, userId){
                         Users.getUserDataFromUserId(instanceUserId).then(userData => {
                             if(userData !== undefined){
                                 if(ArrayTools.find(userData.Friends, userId) !== undefined){
-                                    instance.ConnectedUsers.push(userId)
                                     exec(true)
                                     c = false
                                 }
@@ -190,23 +189,132 @@ function userJoinedInstance(gameServerId, instanceId, worldId, userId){
                 }
                 break
             case exports.InstancePublicity.Anyone:
-                instance.ConnectedUsers.push(userId)
                 exec(true)
                 break
         }
     })
 }
 
-function userLeftInstance(gameServerId, instanceId, worldId, userId){
+function canUserInvite(instance, userIdBeingInvited, userIdInviting){
+    return new Promise((exec, reject) => {
+        switch(instance.InstancePublicity){
+            case exports.InstancePublicity.ClosedRequest:
+                exec(instance.InstanceCreatorId === userIdInviting)
+                break
+            case exports.InstancePublicity.OpenRequest:
+                exec(ArrayTools.find(instance.ConnectedUsers, userIdInviting))
+                break
+            case exports.InstancePublicity.Friends:
+                Users.getUserDataFromUserId(instance.InstanceCreatorId).then(instanceOwnerUser => {
+                    if(instanceOwnerUser !== undefined){
+                        exec(ArrayTools.find(instanceOwnerUser.Friends, userIdBeingInvited) !== undefined)
+                    }
+                    else
+                        exec(false)
+                }).catch(err => reject(err))
+                break
+            case exports.InstancePublicity.Acquaintances:
+                Users.getUserDataFromUserId(instance.InstanceCreatorId).then(instanceOwnerUser => {
+                    if(instanceOwnerUser !== undefined){
+                        exec(ArrayTools.find(instanceOwnerUser.Friends, userIdInviting) !== undefined)
+                    }
+                    else
+                        exec(false)
+                }).catch(err => reject(err))
+                break
+            case exports.InstancePublicity.Anyone:
+                exec(true)
+                break
+        }
+    })
+}
 
+function userJoinedInstance(gameServerId, instanceId, userId){
+    return new Promise((exec, reject) => {
+        let instance = getInstanceFromGameServerInstanceId(gameServerId, instanceId)
+        if(instance === undefined){
+            exec(false)
+            return
+        }
+        let user = getSocketFromUserId(userId)
+        if(user === undefined){
+            exec(false)
+            return
+        }
+        if(ArrayTools.find(instance.ConnectedUsers, userId)){
+            exec(false)
+            return
+        }
+        isUserWelcomeInInstance(instance, userId).then(isWelcome => {
+            if(isWelcome){
+                instance.ConnectedUsers.push(userId)
+                updateSocketMeta(getSocketFromGameServerId(gameServerId, instance))
+                exec(true)
+            }
+            else
+                exec(false)
+        }).catch(err => reject(err))
+    })
+}
+
+function userLeftInstance(gameServerId, instanceId, userId){
+    let instance = getInstanceFromGameServerInstanceId(gameServerId, instanceId)
+    if(instance === undefined)
+        return false
+    if(ArrayTools.find(instance.ConnectedUsers, userId) !== undefined){
+        instance.ConnectedUsers = ArrayTools.filterArray(instance.ConnectedUsers, userId)
+        updateSocketMeta(getSocketFromGameServerId(gameServerId, instance))
+        return true
+    }
+    return false
 }
 
 function addUserToInstanceModerator(gameServerId, instanceId, userId){
-
+    let instance = getInstanceFromGameServerInstanceId(gameServerId, instanceId)
+    if(instance === undefined)
+        return false
+    if(ArrayTools.find(instance.ConnectedUsers, userId) !== undefined && ArrayTools.find(instance.Moderators, userId) === undefined){
+        instance.Moderators.push(userId)
+        updateSocketMeta(getSocketFromGameServerId(gameServerId, instance))
+        return true
+    }
+    return false
 }
 
 function removeUserFromInstanceModerator(gameServerId, instanceId, userId){
+    let instance = getInstanceFromGameServerInstanceId(gameServerId, instanceId)
+    if(instance === undefined)
+        return false
+    if(ArrayTools.find(instance.Moderators, userId) !== undefined){
+        instance.Moderators = ArrayTools.filterArray(instance.Moderators, userId)
+        updateSocketMeta(getSocketFromGameServerId(gameServerId, instance))
+        return true
+    }
+    return false
+}
 
+function banUserFromInstance(gameServerId, instanceId, userId){
+    let instance = getInstanceFromGameServerInstanceId(gameServerId, instanceId)
+    if(instance === undefined)
+        return false
+    if(ArrayTools.find(instance.Moderators, userId) === undefined && ArrayTools.find(instance.Moderators, userId) === undefined){
+        instance.BannedUsers.push(userId)
+        updateSocketMeta(getSocketFromGameServerId(gameServerId, instance))
+        return true
+    }
+    return false
+}
+
+function unbanUserFromInstance(gameServerId, instanceId, userId){
+    let instance = getInstanceFromGameServerInstanceId(gameServerId, instanceId)
+    if(instance === undefined)
+        return false
+    if(ArrayTools.find(instance.BannedUsers, userId) !== undefined){
+        instance.BannedUsers = ArrayTools.filterArray(instance.BannedUsers, userId)
+        updateSocketMeta(getSocketFromGameServerId(gameServerId, instance))
+        return true
+    }
+    return false
 }
 
 function onSocketConnect(socket){
@@ -230,6 +338,10 @@ function onSocketConnect(socket){
               * {
               *     serverTokenContent: "game server tokenContent",
               *     message: "",
+              *     // given by the server after auth
+              *     gameServerId: "",
+              *     // given by the server after auth
+              *     gameServerToken: "",
               *     args: {}
               * }
               * the simple way to differentiate is to check if there's a serverIP property
@@ -270,8 +382,13 @@ function onSocketConnect(socket){
                         meta.gameServerId = ID.new(ID.IDTypes.GameServer)
                         while(getSocketFromGameServerId(meta.gameServerId) !== undefined)
                             meta.gameServerId = ID.new(ID.IDTypes.GameServer)
+                        meta.gameServerToken = ID.newTokenPassword(50)
                         meta.serverTokenContent = parsedMessage.serverTokenContent
                         updateSocketMeta(socket, meta)
+                        socket.send(SocketMessage.craftSocketMessage("sendauth", {
+                            gameServerId: meta.gameServerId,
+                            gameServerToken: meta.gameServerToken
+                        }))
                         postMessageHandle(socket, meta, parsedMessage, true).then(newMeta => {
                             if(newMeta !== undefined){
                                 meta = newMeta
@@ -296,13 +413,109 @@ function onSocketConnect(socket){
 function postMessageHandle(socket, meta, parsedMessage, isServer){
     return new Promise((exec, reject) => {
         if(isServer){
-            switch (parsedMessage.message.toLowerCase()) {
-                
+            if(isGameServerTokenValid(parsedMessage.gameServerId, parsedMessage.gameServerToken)){
+                switch (parsedMessage.message.toLowerCase()) {
+                    case "addmoderator":{
+                        // Required Args: {args.instanceId, args.userId}
+                        let gameServer = getGameServerFromId(parsedMessage.gameServerId)
+                        if(gameServer !== undefined && getSocketFromUserId(parsedMessage.args.userId) !== undefined){
+                            if(addUserToInstanceModerator(parsedMessage.gameServerId, parsedMessage.args.instanceId, parsedMessage.args.userId)) {
+                                socket.send(SocketMessage.craftSocketMessage("addedmoderator", {
+                                    userId: parsedMessage.args.userId
+                                }))
+                            }
+                        }
+                        break
+                    }
+                    case "removemoderator":{
+                        // Required Args: {args.instanceId, args.userId}
+                        let gameServer = getGameServerFromId(parsedMessage.gameServerId)
+                        if(gameServer !== undefined && getSocketFromUserId(parsedMessage.args.userId) !== undefined){
+                            if(removeUserFromInstanceModerator(parsedMessage.gameServerId, parsedMessage.args.instanceId, parsedMessage.args.userId)) {
+                                socket.send(SocketMessage.craftSocketMessage("removedmoderator", {
+                                    userId: parsedMessage.args.userId
+                                }))
+                            }
+                        }
+                        break
+                    }
+                    case "kickuser":{
+                        // Required Args: {args.instanceId, args.userId}
+                        let gameServer = getGameServerFromId(parsedMessage.gameServerId)
+                        if(gameServer !== undefined && getSocketFromUserId(parsedMessage.args.userId) !== undefined){
+                            if(userLeftInstance(parsedMessage.gameServerId, parsedMessage.args.instanceId, parsedMessage.args.userId)) {
+                                socket.send(SocketMessage.craftSocketMessage("kickeduser", {
+                                    userId: parsedMessage.args.userId
+                                }))
+                            }
+                        }
+                        break
+                    }
+                    case "banuser":{
+                        // Required Args: {args.instanceId, args.userId}
+                        Users.doesUserExist(parsedMessage.args.userId).then(userExists => {
+                            if(userExists){
+                                if(banUserFromInstance(parsedMessage.gameServerId, parsedMessage.args.instanceId, parsedMessage.args.userId)){
+                                    socket.send(SocketMessage.craftSocketMessage("banneduser", {
+                                        instanceId: parsedMessage.args.instanceId,
+                                        userId: parsedMessage.args.userId
+                                    }))
+                                }
+                            }
+                        }).catch(() => {})
+                        break
+                    }
+                    case "unbanuser":{
+                        // Required Args: {args.instanceId, args.userId}
+                        if(unbanUserFromInstance(parsedMessage.gameServerId, parsedMessage.args.instanceId, parsedMessage.args.userId)){
+                            socket.send(SocketMessage.craftSocketMessage("unbanneduser", {
+                                instanceId: parsedMessage.args.instanceId,
+                                userId: parsedMessage.args.userId
+                            }))
+                        }
+                        break
+                    }
+                }
             }
         }
         else{
             switch (parsedMessage.message.toLowerCase()) {
+                case "joininstance":{
+                    // Required Args: {args.gameServerId, args.instanceId}
+                    userJoinedInstance(parsedMessage.args.gameServerId, parsedMessage.args.instanceId, parsedMessage.userId).then(canJoin => {
+                        if(canJoin){
+                            socket.send(SocketMessage.craftSocketMessage("joinedinstance", {
+                                gameServerId: parsedMessage.args.gameServerId,
+                                instanceId: parsedMessage.args.instanceId
+                            }))
+                        }
+                        else{
+                            socket.send(SocketMessage.craftSocketMessage("failedtojoininstance", {
+                                gameServerId: parsedMessage.args.gameServerId,
+                                instanceId: parsedMessage.args.instanceId
+                            }))
+                        }
+                    })
+                    break
+                }
+                case "leaveinstance":{
+                    // Required Args: {args.gameServerId, args.instanceId}
+                    if(userLeftInstance(parsedMessage.args.gameServerId, parsedMessage.args.instanceId, parsedMessage.userId)){
+                        socket.send(SocketMessage.craftSocketMessage("leftinstance", {
+                            gameServerId: parsedMessage.args.gameServerId,
+                            instanceId: parsedMessage.args.instanceId
+                        }))
+                    }
+                    else{
+                        socket.send(SocketMessage.craftSocketMessage("failedtoleaveinstance", {
+                            gameServerId: parsedMessage.args.gameServerId,
+                            instanceId: parsedMessage.args.instanceId
+                        }))
+                    }
+                    break
+                }
                 case "sendinvite":{
+                    // Required Args: {args.targetUserId, args.gameServerId, args.toInstanceId}
                     let targetUserId = parsedMessage.args.targetUserId
                     let gameServerId = parsedMessage.args.gameServerId
                     let toInstanceId = parsedMessage.args.toInstanceId
@@ -310,11 +523,17 @@ function postMessageHandle(socket, meta, parsedMessage, isServer){
                     let gameServerSocket = getSocketFromGameServerId(gameServerId)
                     let instanceMeta = getInstanceFromGameServerInstanceId(gameServerId, toInstanceId)
                     if(targetSocket !== undefined && gameServerSocket !== undefined && instanceMeta !== undefined){
-                        targetSocket.send(SocketMessage.craftSocketMessage("gotinvite", {
-                            fromUserId: meta.userId,
-                            toGameServerId: gameServerId,
-                            toInstanceId: toInstanceId
-                        }))
+                        if(ArrayTools.find(instanceMeta.ConnectedUsers, parsedMessage.userId)){
+                            canUserInvite(instanceMeta, targetUserId).then(isWelcome => {
+                                if(isWelcome){
+                                    targetSocket.send(SocketMessage.craftSocketMessage("gotinvite", {
+                                        fromUserId: meta.userId,
+                                        toGameServerId: gameServerId,
+                                        toInstanceId: toInstanceId
+                                    }))
+                                }
+                            }).catch(() => {})
+                        }
                     }
                     break
                 }
