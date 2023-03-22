@@ -133,6 +133,15 @@ function getInstanceFromGameServerInstanceId(gameServerId, instanceId){
     return undefined
 }
 
+function onInstanceUpdated(instanceMeta){
+    let gameServerSocket = getSocketFromGameServerId(instanceMeta.gameServerId)
+    if(gameServerSocket === undefined)
+        return
+    gameServerSocket.send(SocketMessage.craftSocketMessage("updatedinstance", {
+        instanceMeta: instanceMeta
+    }))
+}
+
 function createRequestedInstanceMeta(worldId, creatorId, instancePublicity){
     return new Promise((exec, reject) => {
         Worlds.getWorldMetaById(worldId).then(world => {
@@ -148,6 +157,9 @@ function createRequestedInstanceMeta(worldId, creatorId, instancePublicity){
                     while(getRequestedInstanceFromTemporaryId(requestedMeta.TemporaryId) !== undefined)
                         requestedMeta.TemporaryId = ID.newSafeURLTokenPassword(25)
                     RequestedInstances.push(requestedMeta)
+                    broadcastToGameServers(SocketMessage.craftSocketMessage("requestedinstancecreated", {
+                        temporaryId: requestedMeta.TemporaryId
+                    }))
                     exec(true)
                 }
                 else
@@ -160,6 +172,11 @@ function createRequestedInstanceMeta(worldId, creatorId, instancePublicity){
 }
 
 function createInstanceMetaFromRequestedInstanceMeta(gameServerId, instanceId, requestedInstanceMeta, uri){
+    let userSocket = getSocketFromUserId(requestedInstanceMeta.InstanceCreatorId)
+    if(userSocket === undefined){
+        RequestedInstances = ArrayTools.customFilterArray(RequestedInstances, item => item.TemporaryId !== requestedInstanceMeta.TemporaryId)
+        return undefined
+    }
     let meta = {
         Uri: uri,
         GameServerId: gameServerId,
@@ -174,6 +191,11 @@ function createInstanceMetaFromRequestedInstanceMeta(gameServerId, instanceId, r
     }
     RequestedInstances = ArrayTools.customFilterArray(RequestedInstances, item => item.TemporaryId !== requestedInstanceMeta.TemporaryId)
     Instances.push(meta)
+    onInstanceUpdated(meta)
+    userSocket.send(SocketMessage.craftSocketMessage("instanceopened", {
+        gameServerId: gameServerId,
+        instanceId: instanceId
+    }))
     return meta
 }
 
@@ -296,6 +318,7 @@ function userJoinedInstance(gameServerId, instanceId, userId){
         isUserWelcomeInInstance(instance, userId).then(isWelcome => {
             if(isWelcome){
                 instance.ConnectedUsers.push(userId)
+                onInstanceUpdated(instance)
                 updateSocketMeta(getSocketFromGameServerId(gameServerId, instance))
                 exec(true)
             }
@@ -309,8 +332,16 @@ function userLeftInstance(gameServerId, instanceId, userId){
     let instance = getInstanceFromGameServerInstanceId(gameServerId, instanceId)
     if(instance === undefined)
         return false
+    let gameServerSocket = getSocketFromGameServerId(instance.gameServerId)
+    if(gameServerSocket === undefined)
+        return
     if(ArrayTools.find(instance.ConnectedUsers, userId) !== undefined){
         instance.ConnectedUsers = ArrayTools.filterArray(instance.ConnectedUsers, userId)
+        gameServerSocket.send(SocketMessage.craftSocketMessage("userleft", {
+            instanceId: instanceId,
+            userId: userId
+        }))
+        onInstanceUpdated(instance)
         updateSocketMeta(getSocketFromGameServerId(gameServerId, instance))
         return true
     }
@@ -323,6 +354,7 @@ function addUserToInstanceModerator(gameServerId, instanceId, userId){
         return false
     if(ArrayTools.find(instance.ConnectedUsers, userId) !== undefined && ArrayTools.find(instance.Moderators, userId) === undefined){
         instance.Moderators.push(userId)
+        onInstanceUpdated(instance)
         updateSocketMeta(getSocketFromGameServerId(gameServerId, instance))
         return true
     }
@@ -335,6 +367,7 @@ function removeUserFromInstanceModerator(gameServerId, instanceId, userId){
         return false
     if(ArrayTools.find(instance.Moderators, userId) !== undefined){
         instance.Moderators = ArrayTools.filterArray(instance.Moderators, userId)
+        onInstanceUpdated(instance)
         updateSocketMeta(getSocketFromGameServerId(gameServerId, instance))
         return true
     }
@@ -347,6 +380,7 @@ function banUserFromInstance(gameServerId, instanceId, userId){
         return false
     if(ArrayTools.find(instance.Moderators, userId) === undefined && ArrayTools.find(instance.Moderators, userId) === undefined){
         instance.BannedUsers.push(userId)
+        onInstanceUpdated(instance)
         updateSocketMeta(getSocketFromGameServerId(gameServerId, instance))
         return true
     }
@@ -359,6 +393,7 @@ function unbanUserFromInstance(gameServerId, instanceId, userId){
         return false
     if(ArrayTools.find(instance.BannedUsers, userId) !== undefined){
         instance.BannedUsers = ArrayTools.filterArray(instance.BannedUsers, userId)
+        onInstanceUpdated(instance)
         updateSocketMeta(getSocketFromGameServerId(gameServerId, instance))
         return true
     }
@@ -398,7 +433,7 @@ function onSocketConnect(socket){
                 if(!meta.isVerified){
                     // attempt to verify
                     Users.isUserIdTokenValid(parsedMessage.userId, parsedMessage.tokenContent).then(valid => {
-                        if(valid){
+                        if(valid && getSocketFromUserId(parsedMessage.userId) === undefined){
                             meta.isVerified = true
                             meta.userId = parsedMessage.userId
                             meta.tokenContent = parsedMessage.tokenContent
@@ -469,6 +504,7 @@ function postMessageHandle(socket, meta, parsedMessage, isServer){
                         if(gameServer !== undefined && getSocketFromUserId(parsedMessage.args.userId) !== undefined){
                             if(addUserToInstanceModerator(parsedMessage.gameServerId, parsedMessage.args.instanceId, parsedMessage.args.userId)) {
                                 socket.send(SocketMessage.craftSocketMessage("addedmoderator", {
+                                    instanceId: parsedMessage.args.instanceId,
                                     userId: parsedMessage.args.userId
                                 }))
                             }
@@ -481,6 +517,7 @@ function postMessageHandle(socket, meta, parsedMessage, isServer){
                         if(gameServer !== undefined && getSocketFromUserId(parsedMessage.args.userId) !== undefined){
                             if(removeUserFromInstanceModerator(parsedMessage.gameServerId, parsedMessage.args.instanceId, parsedMessage.args.userId)) {
                                 socket.send(SocketMessage.craftSocketMessage("removedmoderator", {
+                                    instanceId: parsedMessage.args.instanceId,
                                     userId: parsedMessage.args.userId
                                 }))
                             }
@@ -493,6 +530,7 @@ function postMessageHandle(socket, meta, parsedMessage, isServer){
                         if(gameServer !== undefined && getSocketFromUserId(parsedMessage.args.userId) !== undefined){
                             if(userLeftInstance(parsedMessage.gameServerId, parsedMessage.args.instanceId, parsedMessage.args.userId)) {
                                 socket.send(SocketMessage.craftSocketMessage("kickeduser", {
+                                    instanceId: parsedMessage.args.instanceId,
                                     userId: parsedMessage.args.userId
                                 }))
                             }
@@ -526,20 +564,33 @@ function postMessageHandle(socket, meta, parsedMessage, isServer){
                     case "claiminstancerequest":{
                         // Required Args: {args.TemporaryId, args.Uri}
                         let requestedInstance = getRequestedInstanceFromTemporaryId(parsedMessage.args.TemporaryId)
+                        if(requestedInstance === undefined){
+                            socket.send(SocketMessage.craftSocketMessage("notselectedgameserver", {
+                                temporaryId: parsedMessage.args.TemporaryId
+                            }))
+                            return
+                        }
                         if(!requestedInstance.isInstanceClaimed){
                             requestedInstance.isInstanceClaimed = true
                             let id = ID.new(ID.IDTypes.Instance)
                             while(getInstanceFromGameServerInstanceId(parsedMessage.gameServerId, id))
                                 id = ID.new(ID.IDTypes.Instance)
                             let meta = createInstanceMetaFromRequestedInstanceMeta(parsedMessage.gameServerId, id, requestedInstance, parsedMessage.args.Uri)
-                            socket.send(SocketMessage.craftSocketMessage("selectedgameserver"), {
-                                instanceMeta: meta
-                            })
+                            if(meta !== undefined){
+                                socket.send(SocketMessage.craftSocketMessage("selectedgameserver", {
+                                    instanceMeta: meta
+                                }))
+                            }
+                            else{
+                                socket.send(SocketMessage.craftSocketMessage("notselectedgameserver", {
+                                    temporaryId: parsedMessage.args.TemporaryId
+                                }))
+                            }
                         }
                         else
-                            socket.send(SocketMessage.craftSocketMessage("notselectedgameserver"), {
+                            socket.send(SocketMessage.craftSocketMessage("notselectedgameserver", {
                                 temporaryId: parsedMessage.args.TemporaryId
-                            })
+                            }))
                         break
                     }
                 }
@@ -549,23 +600,32 @@ function postMessageHandle(socket, meta, parsedMessage, isServer){
             switch (parsedMessage.message.toLowerCase()) {
                 case "joininstance":{
                     // Required Args: {args.gameServerId, args.instanceId}
-                    userJoinedInstance(parsedMessage.args.gameServerId, parsedMessage.args.instanceId, parsedMessage.userId).then(canJoin => {
-                        if(canJoin){
-                            // if we can join, we know the instance exists
-                            let instanceUri = getInstanceFromGameServerInstanceId(parsedMessage.args.gameServerId, parsedMessage.args.instanceId).Uri
-                            socket.send(SocketMessage.craftSocketMessage("joinedinstance", {
-                                Uri: instanceUri,
-                                gameServerId: parsedMessage.args.gameServerId,
-                                instanceId: parsedMessage.args.instanceId
-                            }))
-                        }
-                        else{
-                            socket.send(SocketMessage.craftSocketMessage("failedtojoininstance", {
-                                gameServerId: parsedMessage.args.gameServerId,
-                                instanceId: parsedMessage.args.instanceId
-                            }))
-                        }
-                    })
+                    let gameServerSocket = getGameServerFromId(parsedMessage.args.gameServerId)
+                    if(gameServerSocket !== undefined){
+                        userJoinedInstance(parsedMessage.args.gameServerId, parsedMessage.args.instanceId, parsedMessage.userId).then(canJoin => {
+                            if(canJoin){
+                                // if we can join, we know the instance exists
+                                let instanceUri = getInstanceFromGameServerInstanceId(parsedMessage.args.gameServerId, parsedMessage.args.instanceId).Uri
+                                let tempUserToken = ID.newTokenPassword(50)
+                                gameServerSocket.send(SocketMessage.craftSocketMessage("tempusertoken", {
+                                    tempUserToken: tempUserToken,
+                                    userId: parsedMessage.userId
+                                }))
+                                socket.send(SocketMessage.craftSocketMessage("joinedinstance", {
+                                    Uri: instanceUri,
+                                    gameServerId: parsedMessage.args.gameServerId,
+                                    instanceId: parsedMessage.args.instanceId,
+                                    tempUserToken: tempUserToken
+                                }))
+                            }
+                            else{
+                                socket.send(SocketMessage.craftSocketMessage("failedtojoininstance", {
+                                    gameServerId: parsedMessage.args.gameServerId,
+                                    instanceId: parsedMessage.args.instanceId
+                                }))
+                            }
+                        })
+                    }
                     break
                 }
                 case "leaveinstance":{

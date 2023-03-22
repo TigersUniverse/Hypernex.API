@@ -58,6 +58,13 @@ exports.initapp = function (usersModule, serverConfig, fileUploadModule, avatars
         }))
     })
 
+    app.get(getAPIEndpoint() + "getSocketInfo", function (req, res){
+        res.end(APIMessage.craftAPIMessage(true, "Got Information", {
+            IsWSS: ServerConfig.LoadedConfig.UseHTTPS,
+            Port: ServerConfig.LoadedConfig.SocketPort
+        }))
+    })
+
     // User Information
 
     app.post(getAPIEndpoint() + "createUser", function (req, res) {
