@@ -16,8 +16,6 @@ let mailgunURL
 let emailVerificationHtml
 let passwordResetHtml
 
-// TODO: Create Email Verification Token, Send Verification Email, Add Email Verification App Endpoint
-
 exports.init = function (ServerConfig){
     mg = mailgun.client({
         username: ServerConfig.LoadedConfig.MailGun.Username,

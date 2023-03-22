@@ -209,7 +209,6 @@ exports.createPronouns = function (nominativeId, accusativeId, reflexiveId, inde
     if(dgc)
         pronouns.DependentGenitiveCase = dgc.DependentGenitiveCase
     if(!!displayThree){
-        // TODO: Set Display Array
         if(exports.isValidCaseId(firstCase))
             pronouns.Display[0] = exports.getCaseById(firstCase)
         if(exports.isValidCaseId(secondCase))

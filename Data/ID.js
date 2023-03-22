@@ -21,6 +21,9 @@ exports.new = function (idtype){
         case 5:
             idprefix = "gameserver_"
             break
+        case 6:
+            idprefix = "instance_"
+            break
         default:
             throw new Error("invalid idprefix!")
     }
@@ -56,5 +59,6 @@ exports.IDTypes = {
     World: 2,
     Post: 3,
     File: 4,
-    GameServer: 5
+    GameServer: 5,
+    Instance: 6
 }
