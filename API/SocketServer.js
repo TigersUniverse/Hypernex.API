@@ -131,6 +131,7 @@ exports.GetSafeInstances = function (user) {
                 GameServerId: instance.GameServerId,
                 InstanceId: instance.InstanceId,
                 InstanceCreatorId: instance.InstanceCreatorId,
+                InstancePublicity: instance.InstancePublicity,
                 InstanceProtocol: instance.InstanceProtocol,
                 ConnectedUsers: instance.ConnectedUsers,
                 WorldId: instance.WorldId
