@@ -42,7 +42,8 @@ function createSocketMeta(){
         instances: undefined,
         // User Stuff
         userId: undefined,
-        tokenContent: undefined
+        tokenContent: undefined,
+        ConnectedInstances: []
     }
 }
 
@@ -366,10 +367,12 @@ function canUserInvite(instance, userIdBeingInvited, userIdInviting){
 function userJoinedInstance(gameServerId, instanceId, userId){
     return new Promise((exec, reject) => {
         let instance = getInstanceFromGameServerInstanceId(gameServerId, instanceId)
-        if(instance === undefined){
+        let userSocket = getSocketFromUserId(userId)
+        if(instance === undefined || userMeta === undefined){
             exec(false)
             return
         }
+        let userMeta = Sockets[userSocket]
         let user = getSocketFromUserId(userId)
         if(user === undefined){
             exec(false)
@@ -384,6 +387,8 @@ function userJoinedInstance(gameServerId, instanceId, userId){
                 instance.ConnectedUsers.push(userId)
                 onInstanceUpdated(instance)
                 updateSocketMeta(getSocketFromGameServerId(gameServerId, instance))
+                userMeta.ConnectedInstances.push({gameServerId: gameServerId, instanceId: instanceId})
+                updateSocketMeta(userSocket, userMeta)
                 exec(true)
             }
             else
@@ -394,8 +399,10 @@ function userJoinedInstance(gameServerId, instanceId, userId){
 
 function userLeftInstance(gameServerId, instanceId, userId){
     let instance = getInstanceFromGameServerInstanceId(gameServerId, instanceId)
-    if(instance === undefined)
+    let userSocket = getSocketFromUserId(userId)
+    if(instance === undefined || userSocket === undefined)
         return false
+    let userMeta = Sockets[userSocket]
     let gameServerSocket = getSocketFromGameServerId(instance.gameServerId)
     if(gameServerSocket === undefined)
         return
@@ -407,6 +414,8 @@ function userLeftInstance(gameServerId, instanceId, userId){
         }))
         onInstanceUpdated(instance)
         updateSocketMeta(getSocketFromGameServerId(gameServerId, instance))
+        userMeta.ConnectedInstances = ArrayTools.customFilterArray(userMeta.ConnectedInstances, item => item.gameServerId !== gameServerId && item.instanceId !== instanceId)
+        updateSocketMeta(userSocket, userMeta)
         return true
     }
     return false
@@ -462,6 +471,16 @@ function unbanUserFromInstance(gameServerId, instanceId, userId){
         return true
     }
     return false
+}
+
+function removeSocketFromAllInstances(socket){
+    let meta = Sockets[socket]
+    if(meta !== undefined && meta.isVerified){
+        for(let i = 0; i < meta.ConnectedInstances; i++){
+            let instanceMeta = meta.ConnectedInstances[i]
+            userLeftInstance(instanceMeta.gameServerId, instanceMeta.instanceId, meta.userId)
+        }
+    }
 }
 
 function onSocketConnect(socket){
@@ -554,6 +573,11 @@ function onSocketConnect(socket){
                 }
             }
         } catch (e) {}
+    })
+    socket.on('close', () => removeSocketFromAllInstances(socket))
+    socket.error('error', function () {
+        removeSocketFromAllInstances(socket)
+        socket.terminate()
     })
 }
 
