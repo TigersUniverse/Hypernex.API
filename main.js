@@ -9,6 +9,7 @@ const Emailing = require("./Data/Emailing.js")
 const FileUploading = require("./Data/FileUploading.js")
 const APIServer = require("./API/Server.js")
 const Users = require("./Game/Users.js")
+const SocketServer = require("./API/SocketServer.js")
 const Avatars = require("./Game/Avatars.js")
 const Worlds = require("./Game/Worlds.js")
 const OTP = require("./Security/OTP.js")
@@ -64,11 +65,19 @@ Database.connect(ServerConfig.LoadedConfig.DatabaseInfo.DatabaseNumber,
             let u = Users.init(ServerConfig, d, otp, ut, sd, usersSearchCollection)
             let a = Avatars.init(ServerConfig, u, d, ut, sd, avatarsSearchCollection)
             let w = Worlds.init(ServerConfig, u, d, ut, sd, worldsSearchCollection)
+            let ss
+            if(ServerConfig.LoadedConfig.UseHTTPS)
+                ss = SocketServer.Init(ServerConfig, u, w, {
+                        key: fs.readFileSync(ServerConfig.LoadedConfig.HTTPSTLS.TLSKeyLocation),
+                        cert: fs.readFileSync(ServerConfig.LoadedConfig.HTTPSTLS.TLSCertificateLocation)
+                })
+            else
+                ss = SocketServer.Init(ServerConfig, u, w)
             InviteCodes.init(d, u, ServerConfig)
             Emailing.init(ServerConfig)
             FileUploading.init(ServerConfig, d, u, sd, uploadsSearchCollection).then(fu => {
                 // API comes last
-                APIServer.initapp(u, ServerConfig, fu, a, w)
+                APIServer.initapp(u, ss, ServerConfig, fu, a, w)
                 let httpServer = APIServer.createServer(80)
                 let httpsServer
                 if(ServerConfig.LoadedConfig.UseHTTPS) {

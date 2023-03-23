@@ -19,6 +19,7 @@ let server
 exports.Init = function (serverConfig, usersModule, worldsModule, ssl) {
     ServerConfig = serverConfig
     Users = usersModule
+    Users.SetSocketServer(this)
     if(ServerConfig.LoadedConfig.UseHTTPS)
         server = https.createServer(ssl, app)
     else{
@@ -29,6 +30,7 @@ exports.Init = function (serverConfig, usersModule, worldsModule, ssl) {
     server.listen(ServerConfig.LoadedConfig.SocketPort, () => {
         Logger.Log("Started WebSocket Server on Port " + ServerConfig.LoadedConfig.SocketPort)
     })
+    return this
 }
 
 function createSocketMeta(){
@@ -73,6 +75,10 @@ function getSocketFromUserId(userid){
     return undefined
 }
 
+exports.isUserIdConnected = function (userId) {
+    return getSocketFromUserId(userId) !== undefined
+}
+
 function broadcastToUsers(message){
     for (let [key, value] of Object.entries(Sockets)){
         if(value.userId !== undefined && value.isVerified)
@@ -115,6 +121,60 @@ function broadcastToGameServers(message){
 let RequestedInstances = []
 let Instances = []
 
+exports.GetSafeInstances = function (user) {
+    return new Promise(exec => {
+        let instanceLoops = 0
+        let is = []
+        for(let i = 0; i < Instances.length; i++){
+            let instance = Instances[i]
+            let safeinstance = {
+                GameServerId: instance.GameServerId,
+                InstanceId: instance.InstanceId,
+                InstanceCreatorId: instance.InstanceCreatorId,
+                InstanceProtocol: instance.InstanceProtocol,
+                ConnectedUsers: instance.ConnectedUsers,
+                WorldId: instance.WorldId
+            }
+            if(instance.InstancePublicity === exports.InstancePublicity.Anyone){
+                is.push(safeinstance)
+                instanceLoops++
+            }
+            else if(instance.InstancePublicity === exports.InstancePublicity.Acquaintances){
+                let added = false
+                for(let u = 0; u < instance.ConnectedUsers.length; u++){
+                    if(!added){
+                        Users.getUserDataFromUserId(instance.ConnectedUsers[u]).then(pu => {
+                            if(pu !== undefined){
+                                if(!added && ArrayTools.find(pu.Friends, user.Id) !== undefined){
+                                    added = true
+                                    is.push(safeinstance)
+                                }
+                            }
+                            instanceLoops++
+                        }).catch(() => instanceLoops++)
+                    }
+                }
+            }
+            else if(instance.InstancePublicity === exports.InstancePublicity.Friends){
+                if(ArrayTools.find(user.Friends, instance.InstanceCreatorId))
+                    is.push(safeinstance)
+                instanceLoops++
+            }
+            else{
+                if(ArrayTools.find(instance.InvitedUsers, user.Id))
+                    is.push(safeinstance)
+                instanceLoops++
+            }
+        }
+        let interval = window.setInterval(() => {
+            if(instanceLoops >= Instances.length){
+                exec(is)
+                clearInterval(interval)
+            }
+        }, 10)
+    })
+}
+
 function getRequestedInstanceFromTemporaryId(temporaryId){
     for (let i = 0; i < RequestedInstances.length; i++){
         let requestedInstance = RequestedInstances[i]
@@ -142,7 +202,7 @@ function onInstanceUpdated(instanceMeta){
     }))
 }
 
-function createRequestedInstanceMeta(worldId, creatorId, instancePublicity){
+function createRequestedInstanceMeta(worldId, creatorId, instancePublicity, instanceProtocol){
     return new Promise((exec, reject) => {
         Worlds.getWorldMetaById(worldId).then(world => {
             if(world !== undefined){
@@ -152,13 +212,15 @@ function createRequestedInstanceMeta(worldId, creatorId, instancePublicity){
                         isInstanceClaimed: false,
                         WorldId: worldId,
                         InstancePublicity: exports.InstancePublicity.getInstanceFromNumber(instancePublicity),
+                        InstanceProtocol: exports.InstanceProtocol.getProtocolFromNumber(instanceProtocol),
                         InstanceCreatorId: creatorId
                     }
                     while(getRequestedInstanceFromTemporaryId(requestedMeta.TemporaryId) !== undefined)
                         requestedMeta.TemporaryId = ID.newSafeURLTokenPassword(25)
                     RequestedInstances.push(requestedMeta)
                     broadcastToGameServers(SocketMessage.craftSocketMessage("requestedinstancecreated", {
-                        temporaryId: requestedMeta.TemporaryId
+                        temporaryId: requestedMeta.TemporaryId,
+                        instanceProtocol: requestedMeta.InstanceProtocol
                     }))
                     exec(true)
                 }
@@ -183,6 +245,7 @@ function createInstanceMetaFromRequestedInstanceMeta(gameServerId, instanceId, r
         InstanceId: instanceId,
         WorldId: requestedInstanceMeta.WorldId,
         InstancePublicity: exports.InstancePublicity.getInstanceFromNumber(requestedInstanceMeta.InstancePublicity),
+        InstanceProtocol: exports.InstanceProtocol.getProtocolFromNumber(requestedInstanceMeta.InstanceProtocol),
         InstanceCreatorId: requestedInstanceMeta.InstanceCreatorId,
         InvitedUsers: [],
         BannedUsers: [],
@@ -668,8 +731,8 @@ function postMessageHandle(socket, meta, parsedMessage, isServer){
                     break
                 }
                 case "requestnewinstance":{
-                    // Required Args: {args.worldId, args.instancePublicity}
-                    createRequestedInstanceMeta(parsedMessage.args.worldId, parsedMessage.userId, parsedMessage.args.instancePublicity).then(r => {
+                    // Required Args: {args.worldId, args.instancePublicity, args.instanceProtocol}
+                    createRequestedInstanceMeta(parsedMessage.args.worldId, parsedMessage.userId, parsedMessage.args.instancePublicity, parsedMessage.args.instanceProtocol).then(r => {
                         if(r){
                             socket.send(SocketMessage.craftSocketMessage("createdtemporaryinstance", {}))
                         }
@@ -707,6 +770,24 @@ exports.InstancePublicity = {
                 return exports.InstancePublicity.ClosedRequest
             default:
                 return exports.InstancePublicity.ClosedRequest
+        }
+    }
+}
+
+exports.InstanceProtocol = {
+    KCP: 0,
+    TCP: 1,
+    UDP: 2,
+    getProtocolFromNumber: function (number) {
+        switch(number){
+            case 0:
+                return exports.InstanceProtocol.KCP
+            case 1:
+                return exports.InstanceProtocol.TCP
+            case 2:
+                return exports.InstanceProtocol.UDP
+            default:
+                return exports.InstanceProtocol.KCP
         }
     }
 }

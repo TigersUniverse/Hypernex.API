@@ -16,6 +16,7 @@ const app = express()
 
 let ServerConfig
 let Users
+let SocketServer
 let FileUploading
 let Avatars
 let Worlds
@@ -36,8 +37,9 @@ function isUserBodyValid(property, targetType){
     return v
 }
 
-exports.initapp = function (usersModule, serverConfig, fileUploadModule, avatarsModule, worldsModule){
+exports.initapp = function (usersModule, socketServerModule, serverConfig, fileUploadModule, avatarsModule, worldsModule){
     Users = usersModule
+    SocketServer = socketServerModule
     ServerConfig = serverConfig
     FileUploading = fileUploadModule
     Avatars = avatarsModule
@@ -1150,6 +1152,36 @@ exports.initapp = function (usersModule, serverConfig, fileUploadModule, avatars
             catch (e) {
                 res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
             }
+        }
+        else
+            res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+    })
+
+    app.post(getAPIEndpoint() + "instances", function (req, res) {
+        let userid = req.body.userid
+        let tokenContent = req.body.tokenContent
+        if(isUserBodyValid(userid, "string") && isUserBodyValid(tokenContent, "string")){
+            Users.isUserIdTokenValid(userid, tokenContent).then(isTokenValid => {
+                if(isTokenValid){
+                    Users.getUserDataFromUserId(userid).then(user => {
+                        if(user !== undefined){
+                            SocketServer.GetSafeInstances(user).then(instances => {
+                                if(instances !== undefined){
+                                    res.end(APIMessage.craftAPIMessage(true, "Got instances!", {
+                                        SafeInstances: instances
+                                    }))
+                                }
+                                else
+                                    res.end(APIMessage.craftAPIMessage(false, "Failed to get Instances!"))
+                            }).catch(() => res.end(APIMessage.craftAPIMessage(false, "Failed to get Instances!")))
+                        }
+                        else
+                            res.end(APIMessage.craftAPIMessage(false, "Failed to get User for Instances!"))
+                    }).catch(() => res.end(APIMessage.craftAPIMessage(false, "Failed to get Instances!")))
+                }
+                else
+                    res.end(APIMessage.craftAPIMessage(false, "Invalid Token!"))
+            }).catch(() => res.end(APIMessage.craftAPIMessage(false, "Failed to get Instances!")))
         }
         else
             res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))

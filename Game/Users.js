@@ -14,6 +14,7 @@ const PronounTools = require("./../Tools/PronounTools.js")
 let Database
 let OTP
 let URLTools
+let SocketServer
 let SearchDatabase
 
 let UsersCollection
@@ -36,6 +37,10 @@ exports.init = function (ServerConfig, databaseModule, otpModule, urlToolsModule
     UsersCollection = usersCollection
     Logger.Log("Initialized Users!")
     return this
+}
+
+exports.SetSocketServer = function (socketServerModule){
+    SocketServer = socketServerModule
 }
 
 function createUserData(id, username, hashedPassword, email){
@@ -107,7 +112,7 @@ exports.censorUser = function (userdata){
         },
         Rank: userdata.Rank
     }
-    if(DateTools.getUnixTime(new Date()) - userdata.LastPing <= ONLINE_TIMEFRAME && userdata.Bio.Status !== exports.Status.Offline)
+    if(SocketServer.isUserIdConnected(userdata.Id))
         d.Bio.Status = userdata.Bio.Status
     if(!userdata.Bio.isPrivateAccount){
         d.Following = userdata.Following
@@ -666,30 +671,6 @@ exports.Login = function (app, username, password, twofacode){
         }).catch(perr => {
             exec({result: -1})
         })
-    })
-}
-
-exports.PingUser = function (userid, tokenContent) {
-    return new Promise((exec, reject) => {
-        exports.isUserIdTokenValid(userid, tokenContent).then(validToken => {
-            if(validToken){
-                exports.getUserDataFromUserId(userid).then(userdata => {
-                    if(userdata){
-                        userdata.LastPing = DateTools.getUnixTime(new Date())
-                        setUserData(userdata).then(r => {
-                            if(r)
-                                exec(true)
-                            else
-                                exec(false)
-                        }).catch(() => exec(false))
-                    }
-                    else
-                        exec(false)
-                }).catch(() => exec(false))
-            }
-            else
-                exec(false)
-        }).catch(() => exec(false))
     })
 }
 
