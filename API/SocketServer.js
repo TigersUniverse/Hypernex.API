@@ -480,14 +480,17 @@ function removeSocketFromAllInstances(socket){
             let instanceMeta = meta.ConnectedInstances[i]
             userLeftInstance(instanceMeta.gameServerId, instanceMeta.instanceId, meta.userId)
         }
+        delete Sockets[socket]
     }
 }
 
 function onSocketConnect(socket){
     let meta = createSocketMeta()
     // This socket.destroy() is correct, because it should be added if addSocket returns false
-    if(!addSocket(socket, meta))
+    if(!addSocket(socket, meta)){
         socket.destroy()
+        return
+    }
     socket.on('message', function message(data) {
         try{
             let parsedMessage = JSON.parse(data)
@@ -575,7 +578,7 @@ function onSocketConnect(socket){
         } catch (e) {}
     })
     socket.on('close', () => removeSocketFromAllInstances(socket))
-    socket.error('error', function () {
+    socket.on('error', function () {
         removeSocketFromAllInstances(socket)
         socket.terminate()
     })
