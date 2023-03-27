@@ -244,6 +244,7 @@ function createInstanceMetaFromRequestedInstanceMeta(gameServerId, instanceId, r
     let meta = {
         Uri: uri,
         GameServerId: gameServerId,
+        TemporaryId: requestedInstanceMeta.TemporaryId,
         InstanceId: instanceId,
         WorldId: requestedInstanceMeta.WorldId,
         InstancePublicity: exports.InstancePublicity.getInstanceFromNumber(requestedInstanceMeta.InstancePublicity),
@@ -684,6 +685,23 @@ function postMessageHandle(socket, meta, parsedMessage, isServer){
                             }))
                         break
                     }
+                    case "removeinstance":{
+                        // Required Args: {args.instanceId}
+                        let instance = getInstanceFromGameServerInstanceId(parsedMessage.gameServerId, parsedMessage.args.instanceId)
+                        if(instance !== undefined){
+                            for(let i = 0; i < instance.ConnectedUsers.length; i++){
+                                let userId = instance.ConnectedUsers[i]
+                                if(userLeftInstance(parsedMessage.gameServerId, parsedMessage.args.instanceId, userId)){
+                                    socket.send(SocketMessage.craftSocketMessage("leftinstance", {
+                                        gameServerId: parsedMessage.args.gameServerId,
+                                        instanceId: parsedMessage.args.instanceId
+                                    }))
+                                }
+                            }
+                        }
+                        Instances = ArrayTools.customFilterArray(Instances, item => item.GameServerId !== parsedMessage.gameServerId && item.InstanceId !== parsedMessage.args.instanceId)
+                        break
+                    }
                 }
             }
         }
@@ -700,7 +718,8 @@ function postMessageHandle(socket, meta, parsedMessage, isServer){
                                 let tempUserToken = ID.newTokenPassword(50)
                                 gameServerSocket.send(SocketMessage.craftSocketMessage("tempusertoken", {
                                     tempUserToken: tempUserToken,
-                                    userId: parsedMessage.userId
+                                    userId: parsedMessage.userId,
+                                    instanceId: parsedMessage.args.instanceId
                                 }))
                                 socket.send(SocketMessage.craftSocketMessage("joinedinstance", {
                                     Uri: instanceUri,
@@ -757,6 +776,31 @@ function postMessageHandle(socket, meta, parsedMessage, isServer){
                         }
                     }
                     break
+                }
+                case "shareavatartoken":{
+                    // Required Args: {args.targetUserId, args.avatarId, args.avatarToken}
+                    let targetUserId = parsedMessage.args.targetUserId
+                    let targetSocket = getSocketFromUserId(targetUserId)
+                    if(targetSocket !== undefined){
+                        targetSocket.send(SocketMessage.craftSocketMessage("sharedavatartoken", {
+                            fromUserId: parsedMessage.userId,
+                            targetUserId: parsedMessage.args.targetUserId,
+                            avatarId: parsedMessage.args.avatarId,
+                            avatarToken: parsedMessage.args.avatarToken
+                        }))
+                        socket.send(SocketMessage.craftSocketMessage("sharedavatartoken", {
+                            fromUserId: parsedMessage.userId,
+                            targetUserId: parsedMessage.args.targetUserId,
+                            avatarId: parsedMessage.args.avatarId,
+                            avatarToken: parsedMessage.args.avatarToken
+                        }))
+                    }
+                    else
+                        socket.send(SocketMessage.craftSocketMessage("failedtoshareavatartoken", {
+                            targetUserId: parsedMessage.args.targetUserId,
+                            avatarId: parsedMessage.args.avatarId,
+                            avatarToken: parsedMessage.args.avatarToken
+                        }))
                 }
                 case "requestnewinstance":{
                     // Required Args: {args.worldId, args.instancePublicity, args.instanceProtocol}
