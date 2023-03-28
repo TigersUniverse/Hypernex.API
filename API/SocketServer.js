@@ -168,7 +168,7 @@ exports.GetSafeInstances = function (user) {
                 instanceLoops++
             }
         }
-        let interval = window.setInterval(() => {
+        let interval = setInterval(() => {
             if(instanceLoops >= Instances.length){
                 exec(is)
                 clearInterval(interval)
@@ -486,6 +486,7 @@ function removeSocketFromAllInstances(socket){
 }
 
 function onSocketConnect(socket){
+    let isAlive = true
     let meta = createSocketMeta()
     // This socket.destroy() is correct, because it should be added if addSocket returns false
     if(!addSocket(socket, meta)){
@@ -549,9 +550,10 @@ function onSocketConnect(socket){
                 if(!meta.isVerified){
                     if(ServerConfig.LoadedConfig.AllowAnyGameServer || ArrayTools.find(ServerConfig.LoadedConfig.GameServerTokens, parsedMessage.serverTokenContent) !== undefined){
                         meta.isVerified = true
-                        meta.gameServerId = ID.new(ID.IDTypes.GameServer)
-                        while(getSocketFromGameServerId(meta.gameServerId) !== undefined)
-                            meta.gameServerId = ID.new(ID.IDTypes.GameServer)
+                        let gid = ID.new(ID.IDTypes.GameServer)
+                        while(getSocketFromGameServerId(gid) !== undefined)
+                            gid = ID.new(ID.IDTypes.GameServer)
+                        meta.gameServerId = gid
                         meta.gameServerToken = ID.newTokenPassword(50)
                         meta.serverTokenContent = parsedMessage.serverTokenContent
                         updateSocketMeta(socket, meta)
@@ -578,11 +580,25 @@ function onSocketConnect(socket){
             }
         } catch (e) {}
     })
-    socket.on('close', () => removeSocketFromAllInstances(socket))
+    const interval = setInterval(() => {
+        if(!isAlive){
+            removeSocketFromAllInstances(socket)
+            socket.terminate()
+            return
+        }
+        isAlive = false
+        socket.ping()
+    }, 10000)
+    socket.on('close', () => {
+        removeSocketFromAllInstances(socket)
+        clearInterval(interval)
+    })
     socket.on('error', function () {
         removeSocketFromAllInstances(socket)
+        clearInterval(interval)
         socket.terminate()
     })
+    socket.on('pong', () => isAlive = true)
 }
 
 function postMessageHandle(socket, meta, parsedMessage, isServer){
