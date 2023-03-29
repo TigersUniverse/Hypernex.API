@@ -115,7 +115,7 @@ function removeUploadDataFromUser (userid, data) {
 }
 
 // Indexed by the ID.IDTypes
-const ALLOWED_FILE_TYPES = [[".jpg", ".jpeg", ".gif", ".png", ".mp4"], [".hna"], [".hnw"]]
+const ALLOWED_FILE_TYPES = [[".jpg", ".jpeg", ".gif", ".png", ".mp4"], [".hna"], [".hnw"], [".js", ".py"]]
 
 function isValidFileType(fileType, UploadType){
     for(let i = 0; i < ALLOWED_FILE_TYPES[UploadType].length; i++){
@@ -142,6 +142,10 @@ function getUploadTypeFromFileExtension(fileExtension){
             return exports.UploadType.Media
         case ".mp4":
             return exports.UploadType.Media
+        case ".js":
+            return exports.UploadType.ServerScript
+        case ".py":
+            return exports.UploadType.ServerScript
     }
     return undefined
 }
@@ -311,5 +315,6 @@ exports.DeleteFile = function (userid, fileId) {
 exports.UploadType = {
     Media: 0,
     Avatar: 1,
-    World: 2
+    World: 2,
+    ServerScript: 3,
 }

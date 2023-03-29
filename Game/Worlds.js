@@ -12,15 +12,17 @@ let serverConfig
 let Users
 let Database
 let URLTools
+let FileUploading
 let SearchDatabase
 
 let WorldsCollection
 
-exports.init = function (ServerConfig, usersModule, databaseModule, urlToolsModule, searchDatabaseModule, worldsCollection){
+exports.init = function (ServerConfig, usersModule, databaseModule, urlToolsModule, fileUploadingModule, searchDatabaseModule, worldsCollection){
     serverConfig = ServerConfig
     Users = usersModule
     Database = databaseModule
     URLTools = urlToolsModule
+    FileUploading = fileUploadingModule
     SearchDatabase = searchDatabaseModule
     WorldsCollection = worldsCollection
     Logger.Log("Initialized Worlds!")
@@ -52,6 +54,37 @@ exports.getWorldMetaById = function (worldid) {
             else
                 exec(undefined)
         }).catch(err => reject(err))
+    })
+}
+
+function deleteWorldsFromArray(worldScripts){
+    return new Promise((exec, reject) => {
+        FileUploading.DeleteFile(worldScripts[0].UserId, worldScripts[0].FileId).then(r => {
+            if(r){
+                let na = ArrayTools.customFilterArray(worldScripts, x => x.UserId === worldScripts[0].UserId && x.FileId === worldScripts[0].FileId)
+                if(na.length > 0)
+                    deleteWorldsFromArray(na).then(r => exec(r)).catch(() => exec(false))
+                else
+                    exec(true)
+            }
+            else
+                exec(false)
+        }).catch(err => reject(err))
+    })
+}
+
+function deleteAllWorldServerScripts (worldMeta) {
+    return new Promise((exec, reject) => {
+        let worldScripts = []
+        for(let i = 0; i < worldMeta.ServerScripts.length; i++){
+            let serverScript = worldMeta.ServerScripts[i]
+            let s = serverScript.split("/")
+            let len = s.length
+            let fileId = s[len - 1]
+            let userId = s[len - 2]
+            worldScripts.push({UserId: userId, FileId: fileId})
+        }
+        deleteWorldsFromArray(worldScripts).then(r => exec(r)).catch(err => reject(err))
     })
 }
 
@@ -91,9 +124,15 @@ exports.handleFileUpload = function (userid, tokenContent, fileid, clientWorldMe
                                         BuildPlatform: worldMeta.BuildPlatform
                                     })
                                     wm.Builds = newbuilds
-                                    setWorldMeta(wm).then(r => {
-                                        if(r)
-                                            exec(wm)
+                                    deleteAllWorldServerScripts(worldMeta).then(dssr => {
+                                        if(dssr){
+                                            setWorldMeta(wm).then(r => {
+                                                if(r)
+                                                    exec(wm)
+                                                else
+                                                    exec(undefined)
+                                            }).catch(err => reject(err))
+                                        }
                                         else
                                             exec(undefined)
                                     }).catch(err => reject(err))
@@ -133,18 +172,30 @@ exports.deleteWorld = function (worldid) {
     return new Promise((exec, reject) => {
         exports.doesWorldExist(worldid).then(exists => {
             if(exists){
-                SearchDatabase.removeDocument(WorldsCollection, {"Id": worldid}).then(r => {
-                    if(r){
-                        Database.delete(WORLDDATA_DATABASE_PREFIX + worldid).then(rr => {
-                            if(rr)
-                                exec(true)
+                exports.getWorldMetaById(worldid).then(worldMeta => {
+                    if(worldMeta !== undefined){
+                        deleteAllWorldServerScripts(worldid).then(dr => {
+                            if(dr){
+                                SearchDatabase.removeDocument(WorldsCollection, {"Id": worldid}).then(r => {
+                                    if(r){
+                                        Database.delete(WORLDDATA_DATABASE_PREFIX + worldid).then(rr => {
+                                            if(rr)
+                                                exec(true)
+                                            else
+                                                exec(false)
+                                        }).catch(err => reject(err))
+                                    }
+                                    else
+                                        exec(false)
+                                }).catch(err => reject(err))
+                            }
                             else
                                 exec(false)
-                        }).catch(err => reject(err))
+                        })
                     }
                     else
                         exec(false)
-                }).catch(err => reject(err))
+                })
             }
             else
                 exec(false)
@@ -177,6 +228,11 @@ function isValidWorldMeta(ownerid, worldMeta){
                     if(!URLTools.isURLAllowed(icon))
                         allowed = false
                 }
+            }
+            for(let i = 0; i < worldMeta.ServerScripts.length; i++){
+                let serverScript = worldMeta.ServerScripts[i]
+                if(!URLTools.isURLAllowed(serverScript))
+                    allowed = false
             }
             if(worldMeta.BuildPlatform < exports.BuildPlatform.Windows || worldMeta.BuildPlatform > exports.BuildPlatform.Android)
                 allowed = false

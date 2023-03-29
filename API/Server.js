@@ -1026,6 +1026,32 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
             res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
     })
 
+    app.get(getAPIEndpoint() + "file/:userid/:fileid/:gameServerId/:gameServerToken", function (req, res) {
+        let userid = req.params.userid
+        let fileid = req.params.fileid
+        let gameServerId = req.params.gameServerId
+        let gameServerToken = req.params.gameServerToken
+        if(isUserBodyValid(userid, "string") && isUserBodyValid(gameServerId, "string") && isUserBodyValid(gameServerId, "string") && isUserBodyValid(gameServerToken, "string")){
+            if(SocketServer.AreGameServerCredentialsValid(gameServerId, gameServerToken)){
+                FileUploading.getFileById(userid, fileid).then(fileData => {
+                    if(fileData.FileMeta.UploadType === FileUploading.UploadType.ServerScript){
+                        res.attachment(fileData.FileMeta.FileName)
+                        res.send(fileData.FileData.Body)
+                    }
+                    else
+                        res.end(APIMessage.craftAPIMessage(false, "File is not a ServerScript!"))
+                }).catch(err => {
+                    Logger.Error("Failed to get file for reason " + err)
+                    res.end(APIMessage.craftAPIMessage(false, "Failed to get file!"))
+                })
+            }
+            else
+                res.end(APIMessage.craftAPIMessage(false, "Invalid GameServer credentials!"))
+        }
+        else
+            res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+    })
+
     app.get(getAPIEndpoint() + "meta/avatar/:avatarid", function (req, res) {
         let avatarid = req.params.avatarid
         if(isUserBodyValid(avatarid, "string")){

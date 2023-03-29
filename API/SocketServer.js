@@ -122,6 +122,15 @@ function broadcastToGameServers(message){
 let RequestedInstances = []
 let Instances = []
 
+exports.AreGameServerCredentialsValid = function (gameServerId, gameServerToken) {
+    let gameServerMeta = getGameServerFromId(gameServerId)
+    if(gameServerMeta === undefined)
+        return false
+    if(ServerConfig.LoadedConfig.AllowAnyGameServer)
+        return gameServerMeta.isVerified
+    return gameServerMeta.isVerified && gameServerMeta.gameServerToken === gameServerToken
+}
+
 exports.GetSafeInstances = function (user) {
     return new Promise(exec => {
         let instanceLoops = 0

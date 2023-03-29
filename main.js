@@ -64,18 +64,18 @@ Database.connect(ServerConfig.LoadedConfig.DatabaseInfo.DatabaseNumber,
             let otp = OTP.init(ServerConfig)
             let u = Users.init(ServerConfig, d, otp, ut, sd, usersSearchCollection)
             let a = Avatars.init(ServerConfig, u, d, ut, sd, avatarsSearchCollection)
-            let w = Worlds.init(ServerConfig, u, d, ut, sd, worldsSearchCollection)
-            let ss
-            if(ServerConfig.LoadedConfig.UseHTTPS)
-                ss = SocketServer.Init(ServerConfig, u, w, {
-                        key: fs.readFileSync(ServerConfig.LoadedConfig.HTTPSTLS.TLSKeyLocation),
-                        cert: fs.readFileSync(ServerConfig.LoadedConfig.HTTPSTLS.TLSCertificateLocation)
-                })
-            else
-                ss = SocketServer.Init(ServerConfig, u, w)
             InviteCodes.init(d, u, ServerConfig)
             Emailing.init(ServerConfig)
             FileUploading.init(ServerConfig, d, u, sd, uploadsSearchCollection).then(fu => {
+                let w = Worlds.init(ServerConfig, u, d, ut, fu, sd, worldsSearchCollection)
+                let ss
+                if(ServerConfig.LoadedConfig.UseHTTPS)
+                    ss = SocketServer.Init(ServerConfig, u, w, {
+                        key: fs.readFileSync(ServerConfig.LoadedConfig.HTTPSTLS.TLSKeyLocation),
+                        cert: fs.readFileSync(ServerConfig.LoadedConfig.HTTPSTLS.TLSCertificateLocation)
+                    })
+                else
+                    ss = SocketServer.Init(ServerConfig, u, w)
                 // API comes last
                 APIServer.initapp(u, ss, ServerConfig, fu, a, w)
                 let httpServer = APIServer.createServer(80)
