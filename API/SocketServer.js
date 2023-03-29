@@ -619,6 +619,8 @@ function onSocketConnect(socket){
                             }
                         }).catch(() => {})
                     }
+                    else
+                        removeSocket(socket)
                 }
                 else{
                     postMessageHandle(socket, meta, parsedMessage, true).then(newMeta => {
