@@ -779,9 +779,11 @@ function postMessageHandle(socket, meta, parsedMessage, isServer){
                     let gameServerSocket = getSocketFromGameServerId(gameServerId)
                     let instanceMeta = getInstanceFromGameServerInstanceId(gameServerId, toInstanceId)
                     if(targetSocket !== undefined && gameServerSocket !== undefined && instanceMeta !== undefined){
-                        if(ArrayTools.find(instanceMeta.ConnectedUsers, parsedMessage.userId)){
+                        if(ArrayTools.find(instanceMeta.ConnectedUsers, parsedMessage.userId) !== undefined){
                             canUserInvite(instanceMeta, targetUserId).then(isWelcome => {
                                 if(isWelcome){
+                                    instanceMeta.InvitedUsers.push(targetUserId)
+                                    onInstanceUpdated(instanceMeta)
                                     targetSocket.send(SocketMessage.craftSocketMessage("gotinvite", {
                                         fromUserId: meta.userId,
                                         toGameServerId: gameServerId,
@@ -817,6 +819,7 @@ function postMessageHandle(socket, meta, parsedMessage, isServer){
                             avatarId: parsedMessage.args.avatarId,
                             avatarToken: parsedMessage.args.avatarToken
                         }))
+                    break
                 }
                 case "requestnewinstance":{
                     // Required Args: {args.worldId, args.instancePublicity, args.instanceProtocol}
