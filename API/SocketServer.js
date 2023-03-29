@@ -39,7 +39,7 @@ function createSocketMeta(){
         // Game Server Stuff
         gameServerId: undefined,
         serverTokenContent: undefined,
-        instances: undefined,
+        Instances: [],
         // User Stuff
         userId: undefined,
         tokenContent: undefined,
@@ -237,7 +237,15 @@ function createRequestedInstanceMeta(worldId, creatorId, instancePublicity, inst
 
 function createInstanceMetaFromRequestedInstanceMeta(gameServerId, instanceId, requestedInstanceMeta, uri){
     let userSocket = getSocketFromUserId(requestedInstanceMeta.InstanceCreatorId)
-    if(userSocket === undefined){
+    let gameServerSocket = getSocketFromGameServerId(gameServerId)
+    let gameServerMeta
+    if(userSocket === undefined || gameServerSocket === undefined){
+        RequestedInstances = ArrayTools.customFilterArray(RequestedInstances, item => item.TemporaryId !== requestedInstanceMeta.TemporaryId)
+        return undefined
+    }
+    else
+        gameServerMeta = Sockets[gameServerSocket]
+    if(gameServerMeta === undefined){
         RequestedInstances = ArrayTools.customFilterArray(RequestedInstances, item => item.TemporaryId !== requestedInstanceMeta.TemporaryId)
         return undefined
     }
@@ -257,6 +265,7 @@ function createInstanceMetaFromRequestedInstanceMeta(gameServerId, instanceId, r
     }
     RequestedInstances = ArrayTools.customFilterArray(RequestedInstances, item => item.TemporaryId !== requestedInstanceMeta.TemporaryId)
     Instances.push(meta)
+    gameServerMeta.Instances.push(instanceId)
     onInstanceUpdated(meta)
     userSocket.send(SocketMessage.craftSocketMessage("instanceopened", {
         gameServerId: gameServerId,
@@ -474,6 +483,27 @@ function unbanUserFromInstance(gameServerId, instanceId, userId){
     return false
 }
 
+function removeInstance(socket, gameServerId, instanceId){
+    let gameServerMeta = Sockets[socket]
+    let instance = getInstanceFromGameServerInstanceId(gameServerId, instanceId)
+    if(instance !== undefined){
+        for(let i = 0; i < instance.ConnectedUsers.length; i++){
+            let userId = instance.ConnectedUsers[i]
+            if(userLeftInstance(gameServerId, instanceId, userId)){
+                let socket = getSocketFromUserId(userId)
+                if(socket !== undefined){
+                    socket.send(SocketMessage.craftSocketMessage("leftinstance", {
+                        gameServerId: parsedMessage.args.gameServerId,
+                        instanceId: parsedMessage.args.instanceId
+                    }))
+                }
+            }
+        }
+    }
+    Instances = ArrayTools.customFilterArray(Instances, item => item.GameServerId !== gameServerId && item.InstanceId !== instanceId)
+    gameServerMeta.Instances = ArrayTools.filterArray(gameServerMeta.Instances, instanceId)
+}
+
 function removeSocketFromAllInstances(socket){
     let meta = Sockets[socket]
     if(meta !== undefined && meta.isVerified){
@@ -482,6 +512,19 @@ function removeSocketFromAllInstances(socket){
             userLeftInstance(instanceMeta.gameServerId, instanceMeta.instanceId, meta.userId)
         }
         delete Sockets[socket]
+    }
+}
+
+function removeAllGameServerInstances(socket, deleteSocket){
+    let meta = Sockets[socket]
+    if(meta !== undefined && meta.isVerified){
+        for(let i = 0; i < meta.Instances; i++){
+            let instanceId = meta.Instances[i]
+            let instance = getInstanceFromGameServerInstanceId(meta.gameServerId, instanceId)
+            removeInstance(socket, meta.gameServerId, instanceId)
+        }
+        if(deleteSocket)
+            delete Sockets[socket]
     }
 }
 
@@ -583,6 +626,7 @@ function onSocketConnect(socket){
     const interval = setInterval(() => {
         if(!isAlive){
             removeSocketFromAllInstances(socket)
+            removeAllGameServerInstances(socket)
             socket.terminate()
             return
         }
@@ -591,10 +635,12 @@ function onSocketConnect(socket){
     }, 10000)
     socket.on('close', () => {
         removeSocketFromAllInstances(socket)
+        removeAllGameServerInstances(socket)
         clearInterval(interval)
     })
     socket.on('error', function () {
         removeSocketFromAllInstances(socket)
+        removeAllGameServerInstances(socket)
         clearInterval(interval)
         socket.terminate()
     })
@@ -703,19 +749,13 @@ function postMessageHandle(socket, meta, parsedMessage, isServer){
                     }
                     case "removeinstance":{
                         // Required Args: {args.instanceId}
-                        let instance = getInstanceFromGameServerInstanceId(parsedMessage.gameServerId, parsedMessage.args.instanceId)
-                        if(instance !== undefined){
-                            for(let i = 0; i < instance.ConnectedUsers.length; i++){
-                                let userId = instance.ConnectedUsers[i]
-                                if(userLeftInstance(parsedMessage.gameServerId, parsedMessage.args.instanceId, userId)){
-                                    socket.send(SocketMessage.craftSocketMessage("leftinstance", {
-                                        gameServerId: parsedMessage.args.gameServerId,
-                                        instanceId: parsedMessage.args.instanceId
-                                    }))
-                                }
-                            }
-                        }
-                        Instances = ArrayTools.customFilterArray(Instances, item => item.GameServerId !== parsedMessage.gameServerId && item.InstanceId !== parsedMessage.args.instanceId)
+                        let gameServerSocket = getSocketFromGameServerId(parsedMessage.gameServerId)
+                        if(gameServerSocket === undefined)
+                            break
+                        let gameServerMeta = Sockets[gameServerSocket]
+                        if(gameServerMeta === undefined)
+                            break
+                        removeInstance(socket, parsedMessage.gameServerId, parsedMessage.args.instanceId)
                         break
                     }
                 }
