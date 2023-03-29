@@ -57,13 +57,13 @@ exports.getWorldMetaById = function (worldid) {
     })
 }
 
-function deleteWorldsFromArray(worldScripts){
+function deleteOldWorldFilesFromArray(worldScripts){
     return new Promise((exec, reject) => {
         FileUploading.DeleteFile(worldScripts[0].UserId, worldScripts[0].FileId).then(r => {
             if(r){
                 let na = ArrayTools.customFilterArray(worldScripts, x => x.UserId === worldScripts[0].UserId && x.FileId === worldScripts[0].FileId)
                 if(na.length > 0)
-                    deleteWorldsFromArray(na).then(r => exec(r)).catch(() => exec(false))
+                    deleteOldWorldFilesFromArray(na).then(r => exec(r)).catch(() => exec(false))
                 else
                     exec(true)
             }
@@ -73,18 +73,20 @@ function deleteWorldsFromArray(worldScripts){
     })
 }
 
-function deleteAllWorldServerScripts (worldMeta) {
+function deleteAllOldWorldFiles (worldMeta, worldUserId, worldFileId) {
     return new Promise((exec, reject) => {
-        let worldScripts = []
+        let assetsToRemove = []
         for(let i = 0; i < worldMeta.ServerScripts.length; i++){
             let serverScript = worldMeta.ServerScripts[i]
             let s = serverScript.split("/")
             let len = s.length
             let fileId = s[len - 1]
             let userId = s[len - 2]
-            worldScripts.push({UserId: userId, FileId: fileId})
+            assetsToRemove.push({UserId: userId, FileId: fileId})
         }
-        deleteWorldsFromArray(worldScripts).then(r => exec(r)).catch(err => reject(err))
+        if(worldUserId !== undefined && worldFileId !== undefined)
+            assetsToRemove.push({UserId: worldUserId, FileId: worldFileId})
+        deleteOldWorldFilesFromArray(assetsToRemove).then(r => exec(r)).catch(err => reject(err))
     })
 }
 
@@ -118,24 +120,50 @@ exports.handleFileUpload = function (userid, tokenContent, fileid, clientWorldMe
                         else
                             exports.getWorldMetaById(id).then(wm => {
                                 if(wm !== undefined){
-                                    let newbuilds = ArrayTools.customFilterArray(wm.Builds, x => x.BuildPlatform === worldMeta.BuildPlatform)
-                                    newbuilds.push({
-                                        FileId: fileid,
-                                        BuildPlatform: worldMeta.BuildPlatform
-                                    })
-                                    wm.Builds = newbuilds
-                                    deleteAllWorldServerScripts(worldMeta).then(dssr => {
-                                        if(dssr){
-                                            setWorldMeta(wm).then(r => {
-                                                if(r)
-                                                    exec(wm)
-                                                else
-                                                    exec(undefined)
-                                            }).catch(err => reject(err))
-                                        }
-                                        else
-                                            exec(undefined)
-                                    }).catch(err => reject(err))
+                                    let worldBuild
+                                    for(let i = 0; i < wm.Builds.length; i++){
+                                        let build = wm.Builds[i]
+                                        if(build.BuildPlatform === worldMeta.BuildPlatform)
+                                            worldBuild = build
+                                    }
+                                    if(worldBuild === undefined)
+                                        deleteAllOldWorldFiles(worldMeta).then(dssr => {
+                                            if(dssr){
+                                                let newbuilds = ArrayTools.customFilterArray(wm.Builds, x => x.BuildPlatform === worldMeta.BuildPlatform)
+                                                newbuilds.push({
+                                                    FileId: fileid,
+                                                    BuildPlatform: worldMeta.BuildPlatform
+                                                })
+                                                wm.Builds = newbuilds
+                                                setWorldMeta(wm).then(r => {
+                                                    if(r)
+                                                        exec(wm)
+                                                    else
+                                                        exec(undefined)
+                                                }).catch(err => reject(err))
+                                            }
+                                            else
+                                                exec(undefined)
+                                        }).catch(err => reject(err))
+                                    else
+                                        deleteAllOldWorldFiles(worldMeta, userid, worldBuild.FileId).then(dssr => {
+                                            if(dssr){
+                                                let newbuilds = ArrayTools.customFilterArray(wm.Builds, x => x.BuildPlatform === worldMeta.BuildPlatform)
+                                                newbuilds.push({
+                                                    FileId: fileid,
+                                                    BuildPlatform: worldMeta.BuildPlatform
+                                                })
+                                                wm.Builds = newbuilds
+                                                setWorldMeta(wm).then(r => {
+                                                    if(r)
+                                                        exec(wm)
+                                                    else
+                                                        exec(undefined)
+                                                }).catch(err => reject(err))
+                                            }
+                                            else
+                                                exec(undefined)
+                                        }).catch(err => reject(err))
                                 }
                                 else
                                     exec(undefined)
@@ -174,7 +202,7 @@ exports.deleteWorld = function (worldid) {
             if(exists){
                 exports.getWorldMetaById(worldid).then(worldMeta => {
                     if(worldMeta !== undefined){
-                        deleteAllWorldServerScripts(worldid).then(dr => {
+                        deleteAllOldWorldFiles(worldid).then(dr => {
                             if(dr){
                                 SearchDatabase.removeDocument(WorldsCollection, {"Id": worldid}).then(r => {
                                     if(r){
