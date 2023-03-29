@@ -606,7 +606,6 @@ function onSocketConnect(socket){
                         while(getSocketFromGameServerId(gid) !== undefined)
                             gid = ID.new(ID.IDTypes.GameServer)
                         meta.gameServerId = gid
-                        meta.gameServerToken = ID.newSafeURLTokenPassword(50)
                         meta.serverTokenContent = parsedMessage.serverTokenContent
                         updateSocketMeta(socket, meta)
                         socket.send(SocketMessage.craftSocketMessage("sendauth", {
