@@ -64,6 +64,7 @@ exports.handleFileUpload = function (userid, tokenContent, fileid, clientAvatarM
                         let id = ID.new(ID.IDTypes.Avatar)
                         if(avatarMeta.Id === undefined || avatarMeta.Id === ""){
                             avatarMeta.Id = id
+                            avatarMeta.OwnerId = userid
                             exports.doesAvatarExist(avatarMeta.Id).then(overlapping => {
                                 if(overlapping)
                                     exec(undefined)

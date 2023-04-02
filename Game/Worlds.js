@@ -100,6 +100,7 @@ exports.handleFileUpload = function (userid, tokenContent, fileid, clientWorldMe
                         let id = ID.new(ID.IDTypes.World)
                         if(worldMeta.Id === undefined || worldMeta.Id === ""){
                             worldMeta.Id = id
+                            worldMeta.OwnerId = userid
                             exports.doesWorldExist(worldMeta.Id).then(overlapping => {
                                 if(overlapping)
                                     exec(undefined)
