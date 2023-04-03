@@ -276,10 +276,6 @@ function createInstanceMetaFromRequestedInstanceMeta(gameServerId, instanceId, r
     Instances.push(meta)
     gameServerMeta.Instances.push(instanceId)
     onInstanceUpdated(meta)
-    userSocket.send(SocketMessage.craftSocketMessage("instanceopened", {
-        gameServerId: gameServerId,
-        instanceId: instanceId
-    }))
     return meta
 }
 
@@ -756,6 +752,20 @@ function postMessageHandle(socket, meta, parsedMessage, isServer){
                                 temporaryId: parsedMessage.args.TemporaryId
                             }))
                         break
+                    }
+                    case "instanceready":{
+                        // Required Args: {args.instanceId, args.Uri}
+                        let instance = getInstanceFromGameServerInstanceId(parsedMessage.gameServerId, parsedMessage.args.instanceId)
+                        if(instance !== undefined){
+                            let userSocket = getSocketFromUserId(instance.InstanceCreatorId)
+                            if(userSocket !== undefined){
+                                userSocket.send(SocketMessage.craftSocketMessage("instanceopened", {
+                                    gameServerId: parsedMessage.gameServerId,
+                                    instanceId: parsedMessage.args.instanceId,
+                                    Uri: parsedMessage.args.Uri
+                                }))
+                            }
+                        }
                     }
                     case "removeinstance":{
                         // Required Args: {args.instanceId}
