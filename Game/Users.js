@@ -508,7 +508,7 @@ exports.isUserIdTokenValid = function (userid, tokenContent) {
             }
             else
                 exec(v)
-        })
+        }).catch(err => reject(err))
     })
 }
 
