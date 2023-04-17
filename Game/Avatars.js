@@ -62,24 +62,39 @@ exports.getAvatarMetaById = function (avatarid) {
     })
 }
 
-exports.getAvatarMetaByFileId = function (fileId) {
+exports.getAvatarMetaByFileId = function (userId, fileId) {
     return new Promise(exec => {
-        SearchDatabase.find(AvatarsCollection, {"FileId": fileId}).then(avatars => {
-            let found = undefined
-            for(let i in avatars){
-                let avatar = avatars[i]
-                for (let j = 0; j < avatar.Builds.length; j++){
-                    let build = avatar.Builds[j]
-                    if(build.FileId === fileId)
-                        found = avatar
+        Users.getUserDataFromUserId(userId).then(userMeta => {
+            if(userMeta !== undefined){
+                let found = false
+                let loop = 0
+                for(let e = 0; e < userMeta.Avatars.length; e++){
+                    let avatarId = userMeta.Avatars[e]
+                    exports.getAvatarMetaById(avatarId).then(avatar => {
+                        if(found || avatar !== undefined){
+                            for (let j = 0; j < avatar.Builds.length; j++){
+                                let build = avatar.Builds[j]
+                                if(build.FileId === fileId){
+                                    if(avatar._id !== undefined)
+                                        delete avatar._id
+                                    found = true
+                                    exec(avatar)
+                                }
+                            }
+                            if(loop === userMeta.Avatars.length && !found)
+                                exec(undefined)
+                        }
+                        loop++
+                    }).catch(() => {
+                        loop++
+                        if(loop === userMeta.Avatars.length && !found)
+                            exec(undefined)
+                    })
                 }
             }
-            if(found !== undefined){
-                if(found._id !== undefined)
-                    delete found._id
-                exec(found)
-            }
-        }).catch(err => exec(undefined))
+            else
+                exec(undefined)
+        }).catch(() => exec(undefined))
     })
 }
 
@@ -198,18 +213,39 @@ exports.deleteAvatar = function (avatarid) {
     return new Promise((exec, reject) => {
         exports.doesAvatarExist(avatarid).then(exists => {
             if(exists){
-                SearchDatabase.removeDocument(AvatarsCollection, {"Id": avatarid}).then(r => {
-                    if(r){
-                        Database.delete(AVATARDATA_DATABASE_PREFIX + avatarid).then(rr => {
-                            if(rr)
-                                exec(true)
-                            else
-                                exec(false)
-                        }).catch(err => reject(err))
+                exports.getAvatarMetaById(avatarid).then(avatarMeta => {
+                    if(avatarMeta){
+                        for(let i = 0; i < avatarMeta.Builds.length; i++){
+                            let build = avatarMeta.Builds[i]
+                            FileUploading.DeleteFile(avatarMeta.OwnerId, build.FileId).catch(() => {})
+                        }
                     }
-                    else
-                        exec(false)
-                }).catch(err => reject(err))
+                    SearchDatabase.removeDocument(AvatarsCollection, {"Id": avatarid}).then(r => {
+                        if(r){
+                            Database.delete(AVATARDATA_DATABASE_PREFIX + avatarid).then(rr => {
+                                if(rr)
+                                    exec(true)
+                                else
+                                    exec(false)
+                            }).catch(err => reject(err))
+                        }
+                        else
+                            exec(false)
+                    }).catch(err => reject(err))
+                }).catch(() => {
+                    SearchDatabase.removeDocument(AvatarsCollection, {"Id": avatarid}).then(r => {
+                        if(r){
+                            Database.delete(AVATARDATA_DATABASE_PREFIX + avatarid).then(rr => {
+                                if(rr)
+                                    exec(true)
+                                else
+                                    exec(false)
+                            }).catch(err => reject(err))
+                        }
+                        else
+                            exec(false)
+                    }).catch(err => reject(err))
+                })
             }
             else
                 exec(false)

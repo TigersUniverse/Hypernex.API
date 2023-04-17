@@ -60,24 +60,39 @@ exports.getWorldMetaById = function (worldid) {
     })
 }
 
-exports.getWorldMetaByFileId = function (fileId) {
+exports.getWorldMetaByFileId = function (userId, fileId) {
     return new Promise(exec => {
-        SearchDatabase.find(WorldsCollection, {"FileId": fileId}).then(worlds => {
-            let found = undefined
-            for(let i in worlds){
-                let world = worlds[i]
-                for (let j = 0; j < world.Builds.length; j++){
-                    let build = world.Builds[j]
-                    if(build.FileId === fileId)
-                        found = world
+        Users.getUserDataFromUserId(userId).then(userMeta => {
+            if(userMeta !== undefined){
+                let found = false
+                let loop = 0
+                for(let e = 0; e < userMeta.Worlds.length; e++){
+                    let worldId = userMeta.Worlds[e]
+                    exports.getWorldMetaById(worldId).then(world => {
+                        if(found || world !== undefined){
+                            for (let j = 0; j < world.Builds.length; j++){
+                                let build = world.Builds[j]
+                                if(build.FileId === fileId){
+                                    if(world._id !== undefined)
+                                        delete world._id
+                                    found = true
+                                    exec(world)
+                                }
+                            }
+                            if(loop === userMeta.Worlds.length && !found)
+                                exec(undefined)
+                        }
+                        loop++
+                    }).catch(() => {
+                        loop++
+                        if(loop === userMeta.Worlds.length && !found)
+                            exec(undefined)
+                    })
                 }
             }
-            if(found !== undefined){
-                if(found._id !== undefined)
-                    delete found._id
-                exec(found)
-            }
-        }).catch(err => exec(undefined))
+            else
+                exec(undefined)
+        }).catch(() => exec(undefined))
     })
 }
 
@@ -270,6 +285,10 @@ exports.deleteWorld = function (worldid) {
             if(exists){
                 exports.getWorldMetaById(worldid).then(worldMeta => {
                     if(worldMeta !== undefined){
+                        for(let i = 0; i < worldMeta.Builds.length; i++){
+                            let build = worldMeta.Builds[i]
+                            FileUploading.DeleteFile(worldMeta.OwnerId, build.FileId).catch(() => {})
+                        }
                         deleteAllOldWorldFiles(worldid).then(dr => {
                             if(dr){
                                 SearchDatabase.removeDocument(WorldsCollection, {"Id": worldid}).then(r => {
@@ -287,6 +306,19 @@ exports.deleteWorld = function (worldid) {
                             }
                             else
                                 exec(false)
+                        }).catch(() => {
+                            SearchDatabase.removeDocument(WorldsCollection, {"Id": worldid}).then(r => {
+                                if(r){
+                                    Database.delete(WORLDDATA_DATABASE_PREFIX + worldid).then(rr => {
+                                        if(rr)
+                                            exec(true)
+                                        else
+                                            exec(false)
+                                    }).catch(err => reject(err))
+                                }
+                                else
+                                    exec(false)
+                            }).catch(err => reject(err))
                         })
                     }
                     else

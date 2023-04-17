@@ -924,7 +924,7 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
                 if(fileData){
                     switch (fileData.FileMeta.UploadType) {
                         case FileUploading.UploadType.Avatar:{
-                            Avatars.getAvatarMetaByFileId(fileid).then(avatarMeta => {
+                            Avatars.getAvatarMetaByFileId(userid, fileid).then(avatarMeta => {
                                 if(avatarMeta !== undefined){
                                     if(avatarMeta.Publicity === Avatars.Publicity.Anyone){
                                         res.attachment(fileData.FileMeta.FileName)
@@ -942,7 +942,7 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
                             break
                         }
                         case FileUploading.UploadType.World:{
-                            Worlds.getWorldMetaByFileId(fileid).then(worldMeta => {
+                            Worlds.getWorldMetaByFileId(userid, fileid).then(worldMeta => {
                                 if(worldMeta !== undefined){
                                     if(worldMeta.Publicity === Worlds.Publicity.Anyone){
                                         res.attachment(fileData.FileMeta.FileName)
@@ -989,7 +989,7 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
                 if(fileData){
                     switch (fileData.FileMeta.UploadType) {
                         case FileUploading.UploadType.Avatar:{
-                            Avatars.getAvatarMetaByFileId(fileid).then(avatarMeta => {
+                            Avatars.getAvatarMetaByFileId(userid, fileid).then(avatarMeta => {
                                 if(avatarMeta !== undefined){
                                     if(ArrayTools.find(avatarMeta.Tokens, filetoken) !== undefined || avatarMeta.Publicity === Avatars.Publicity.Anyone){
                                         res.attachment(fileData.FileMeta.FileName)
@@ -1007,7 +1007,7 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
                             break
                         }
                         case FileUploading.UploadType.World:{
-                            Worlds.getWorldMetaByFileId(fileid).then(worldMeta => {
+                            Worlds.getWorldMetaByFileId(userid, fileid).then(worldMeta => {
                                 if(worldMeta !== undefined){
                                     if(ArrayTools.find(worldMeta.Tokens, filetoken) !== undefined || worldMeta.Publicity === Worlds.Publicity.Anyone){
                                         res.attachment(fileData.FileMeta.FileName)
@@ -1027,6 +1027,9 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
                         case FileUploading.UploadType.Media:
                             res.attachment(fileData.FileMeta.FileName)
                             res.send(fileData.FileData.Body)
+                            break
+                        default:
+                            res.end(APIMessage.craftAPIMessage(false, "Incorrect Endpoint for Getting File"))
                             break
                     }
                 }

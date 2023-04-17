@@ -1409,13 +1409,17 @@ exports.addAvatar = function (userid, avatarMeta) {
     return new Promise(exec => {
         exports.getUserDataFromUserId(userid).then(userdata => {
             if(userdata){
-                userdata.Avatars.push(avatarMeta.Id)
-                setUserData(userdata).then(r => {
-                    if(r)
-                        exec(true)
-                    else
-                        exec(false)
-                }).catch(() => exec(false))
+                if(ArrayTools.find(userdata.Avatars, avatarMeta.Id) === undefined){
+                    userdata.Avatars.push(avatarMeta.Id)
+                    setUserData(userdata).then(r => {
+                        if(r)
+                            exec(true)
+                        else
+                            exec(false)
+                    }).catch(() => exec(false))
+                }
+                else
+                    exec(true)
             }
             else
                 exec(false)
@@ -1530,13 +1534,17 @@ exports.addWorld = function (userid, worldMeta) {
     return new Promise(exec => {
         exports.getUserDataFromUserId(userid).then(userdata => {
             if(userdata){
-                userdata.Worlds.push(worldMeta.Id)
-                setUserData(userdata).then(r => {
-                    if(r)
-                        exec(true)
-                    else
-                        exec(false)
-                }).catch(() => exec(false))
+                if(ArrayTools.find(userdata.Worlds, worldMeta.Id) === undefined){
+                    userdata.Worlds.push(worldMeta.Id)
+                    setUserData(userdata).then(r => {
+                        if(r)
+                            exec(true)
+                        else
+                            exec(false)
+                    }).catch(() => exec(false))
+                }
+                else
+                    exec(true)
             }
             else
                 exec(false)
