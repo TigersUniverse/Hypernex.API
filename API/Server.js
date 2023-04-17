@@ -116,7 +116,7 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
                 Users.getPrivateClientUserData(username, tokenContent).then(userdata => {
                     if(userdata){
                         // This will censor for us
-                        res.end(APIMessage.craftAPIMessage(true, "Got user " + userdata.username, {
+                        res.end(APIMessage.craftAPIMessage(true, "Got user " + userdata.Username, {
                             UserData: userdata
                         }))
                     }
@@ -131,7 +131,7 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
                 // Return censored
                 Users.getUserDataFromUsername(username).then(userdata => {
                     if(userdata){
-                        res.end(APIMessage.craftAPIMessage(true, "Got user " + userdata.username, {
+                        res.end(APIMessage.craftAPIMessage(true, "Got user " + userdata.Username, {
                             // Do not forget to censor!
                             UserData: Users.censorUser(userdata)
                         }))
@@ -152,7 +152,7 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
                         Users.getUserDataFromUserId(userid).then(userdata => {
                             if(userdata){
                                 // This will censor for us
-                                res.end(APIMessage.craftAPIMessage(true, "Got user " + userdata.username, {
+                                res.end(APIMessage.craftAPIMessage(true, "Got user " + userdata.Username, {
                                     UserData: userdata
                                 }))
                             }
@@ -174,7 +174,7 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
                 // Return censored
                 Users.getUserDataFromUserId(userid).then(userdata => {
                     if(userdata){
-                        res.end(APIMessage.craftAPIMessage(true, "Got user " + userdata.username, {
+                        res.end(APIMessage.craftAPIMessage(true, "Got user " + userdata.Username, {
                             // Do not forget to censor!
                             UserData: Users.censorUser(userdata)
                         }))
@@ -330,7 +330,7 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
                 else
                     res.end(APIMessage.craftAPIMessage(false, "Failed to verify email!"))
             }).catch(err => {
-                Logger.Error("Failed to verifyEmailToken!")
+                Logger.Error("Failed to verifyEmailToken for reason " + err)
                 res.end(APIMessage.craftAPIMessage(false, "Failed to verify email!"))
             })
         }
@@ -664,29 +664,36 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
                                 Avatars.handleFileUpload(userid, tokenContent, r.FileId, avatarMeta).then(verifiedAvatarMeta => {
                                     if(verifiedAvatarMeta !== undefined){
                                         Users.addAvatar(userid, verifiedAvatarMeta).then(uaar => {
-                                            if(uuar){
+                                            if(uaar){
                                                 res.end(APIMessage.craftAPIMessage(true, "Uploaded Avatar!", {
-                                                    UploadData: r
+                                                    UploadData: r,
+                                                    AvatarId: verifiedAvatarMeta.Id
                                                 }))
                                                 deleteFile(file.path)
                                             }
                                             else{
                                                 res.end(APIMessage.craftAPIMessage(false, "Failed to upload Avatar!"))
+                                                FileUploading.DeleteFile(userid, r.FileId).catch(() => {})
+                                                Avatars.deleteAvatar(verifiedAvatarMeta.Id)
                                                 deleteFile(file.path)
                                             }
                                         }).catch(err => {
                                             Logger.Error("Failed to upload avatar for reason " + err)
                                             res.end(APIMessage.craftAPIMessage(false, "Failed to upload avatar!"))
+                                            FileUploading.DeleteFile(userid, r.FileId).catch(() => {})
+                                            Avatars.deleteAvatar(verifiedAvatarMeta.Id)
                                             deleteFile(file.path)
                                         })
                                     }
                                     else{
                                         res.end(APIMessage.craftAPIMessage(false, "Failed to upload Avatar!"))
+                                        FileUploading.DeleteFile(userid, r.FileId).catch(() => {})
                                         deleteFile(file.path)
                                     }
                                 }).catch(err => {
                                     Logger.Error("Failed to upload avatar for reason " + err)
                                     res.end(APIMessage.craftAPIMessage(false, "Failed to upload avatar!"))
+                                    FileUploading.DeleteFile(userid, r.FileId).catch(() => {})
                                     deleteFile(file.path)
                                 })
                             }
@@ -696,27 +703,33 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
                                         Users.addWorld(userid, verifiedWorldMeta).then(uwar => {
                                             if(uwar){
                                                 res.end(APIMessage.craftAPIMessage(true, "Uploaded World!", {
-                                                    UploadData: r
+                                                    UploadData: r,
+                                                    WorldId: verifiedWorldMeta.Id
                                                 }))
                                                 deleteFile(file.path)
                                             }
                                             else{
                                                 res.end(APIMessage.craftAPIMessage(false, "Failed to upload World!"))
+                                                FileUploading.DeleteFile(userid, r.FileId).catch(() => {})
+                                                Worlds.deleteWorld(verifiedWorldMeta.Id)
                                                 deleteFile(file.path)
                                             }
                                         }).catch(err => {
                                             Logger.Error("Failed to upload world for reason " + err)
                                             res.end(APIMessage.craftAPIMessage(false, "Failed to upload world!"))
+                                            FileUploading.DeleteFile(userid, r.FileId).catch(() => {})
                                             deleteFile(file.path)
                                         })
                                     }
                                     else{
                                         res.end(APIMessage.craftAPIMessage(false, "Failed to upload World!"))
+                                        FileUploading.DeleteFile(userid, r.FileId).catch(() => {})
                                         deleteFile(file.path)
                                     }
                                 }).catch(err => {
-                                    Logger.Error("Failed to upload avatar for reason " + err)
+                                    Logger.Error("Failed to upload world for reason " + err)
                                     res.end(APIMessage.craftAPIMessage(false, "Failed to upload world!"))
+                                    FileUploading.DeleteFile(userid, r.FileId).catch(() => {})
                                     deleteFile(file.path)
                                 })
                             }
@@ -911,7 +924,7 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
                 if(fileData){
                     switch (fileData.FileMeta.UploadType) {
                         case FileUploading.UploadType.Avatar:{
-                            Users.getAvatarIdFromFileId(userid, fileData).then(avatarMeta => {
+                            Avatars.getAvatarMetaByFileId(fileid).then(avatarMeta => {
                                 if(avatarMeta !== undefined){
                                     if(avatarMeta.Publicity === Avatars.Publicity.Anyone){
                                         res.attachment(fileData.FileMeta.FileName)
@@ -929,14 +942,14 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
                             break
                         }
                         case FileUploading.UploadType.World:{
-                            Users.getWorldIdFromFileId(userid, fileData).then(worldMeta => {
+                            Worlds.getWorldMetaByFileId(fileid).then(worldMeta => {
                                 if(worldMeta !== undefined){
-                                    if(ArrayTools.find(worldMeta.Tokens, filetoken) !== undefined || worldMeta.Publicity === Worlds.Publicity.Anyone){
+                                    if(worldMeta.Publicity === Worlds.Publicity.Anyone){
                                         res.attachment(fileData.FileMeta.FileName)
                                         res.send(fileData.FileData.Body)
                                     }
                                     else
-                                        res.end(APIMessage.craftAPIMessage(false, "Failed to Authenticate FileToken"))
+                                        res.end(APIMessage.craftAPIMessage(false, "Missing FileToken"))
                                 }
                                 else
                                     res.end(APIMessage.craftAPIMessage(false, "WorldMeta does not exist!"))
@@ -949,6 +962,9 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
                         case FileUploading.UploadType.Media:
                             res.attachment(fileData.FileMeta.FileName)
                             res.send(fileData.FileData.Body)
+                            break
+                        default:
+                            res.end(APIMessage.craftAPIMessage(false, "Incorrect Endpoint for Getting File"))
                             break
                     }
                 }
@@ -973,7 +989,7 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
                 if(fileData){
                     switch (fileData.FileMeta.UploadType) {
                         case FileUploading.UploadType.Avatar:{
-                            Users.getAvatarIdFromFileId(userid, fileData).then(avatarMeta => {
+                            Avatars.getAvatarMetaByFileId(fileid).then(avatarMeta => {
                                 if(avatarMeta !== undefined){
                                     if(ArrayTools.find(avatarMeta.Tokens, filetoken) !== undefined || avatarMeta.Publicity === Avatars.Publicity.Anyone){
                                         res.attachment(fileData.FileMeta.FileName)
@@ -991,7 +1007,7 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
                             break
                         }
                         case FileUploading.UploadType.World:{
-                            Users.getWorldIdFromFileId(userid, fileData).then(worldMeta => {
+                            Worlds.getWorldMetaByFileId(fileid).then(worldMeta => {
                                 if(worldMeta !== undefined){
                                     if(ArrayTools.find(worldMeta.Tokens, filetoken) !== undefined || worldMeta.Publicity === Worlds.Publicity.Anyone){
                                         res.attachment(fileData.FileMeta.FileName)

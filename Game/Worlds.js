@@ -45,8 +45,11 @@ exports.getWorldMetaById = function (worldid) {
         exports.doesWorldExist(worldid).then(worldExists => {
             if(worldExists){
                 Database.get(WORLDDATA_DATABASE_PREFIX + worldid).then(meta => {
-                    if(meta)
+                    if(meta){
+                        if(meta._id !== undefined)
+                            delete meta._id
                         exec(meta)
+                    }
                     else
                         exec(undefined)
                 }).catch(err => reject(err))
@@ -54,6 +57,27 @@ exports.getWorldMetaById = function (worldid) {
             else
                 exec(undefined)
         }).catch(err => reject(err))
+    })
+}
+
+exports.getWorldMetaByFileId = function (fileId) {
+    return new Promise(exec => {
+        SearchDatabase.find(WorldsCollection, {"FileId": fileId}).then(worlds => {
+            let found = undefined
+            for(let i in worlds){
+                let world = worlds[i]
+                for (let j = 0; j < world.Builds.length; j++){
+                    let build = world.Builds[j]
+                    if(build.FileId === fileId)
+                        found = world
+                }
+            }
+            if(found !== undefined){
+                if(found._id !== undefined)
+                    delete found._id
+                exec(found)
+            }
+        }).catch(err => exec(undefined))
     })
 }
 
@@ -94,85 +118,110 @@ exports.handleFileUpload = function (userid, tokenContent, fileid, clientWorldMe
     return new Promise((exec, reject) => {
         Users.isUserIdTokenValid(userid, tokenContent).then(validToken => {
             if(validToken){
-                isValidWorldMeta(userid, clientWorldMeta).then(validClientMeta => {
-                    if(validClientMeta){
-                        let worldMeta = clientWorldMeta
-                        let id = ID.new(ID.IDTypes.World)
-                        if(worldMeta.Id === undefined || worldMeta.Id === ""){
-                            worldMeta.Id = id
-                            worldMeta.OwnerId = userid
-                            exports.doesWorldExist(worldMeta.Id).then(overlapping => {
-                                if(overlapping)
-                                    exec(undefined)
-                                else {
-                                    worldMeta.Builds = [{
-                                        FileId: fileid,
-                                        BuildPlatform: worldMeta.BuildPlatform
-                                    }]
-                                    setWorldMeta(worldMeta).then(r => {
-                                        if (r)
-                                            exec(worldMeta)
+                let parsedClientWorldMeta
+                let allow = false
+                try{
+                    parsedClientWorldMeta = JSON.parse(clientWorldMeta)
+                    allow = true
+                }
+                catch (e) {}
+                if(allow){
+                    isValidWorldMeta(userid, clientWorldMeta).then(validClientMeta => {
+                        if(validClientMeta){
+                            let worldMeta = clientWorldMeta
+                            let id = ID.new(ID.IDTypes.World)
+                            if(worldMeta.Id === undefined || worldMeta.Id === ""){
+                                worldMeta.Id = id
+                                worldMeta.OwnerId = userid
+                                exports.doesWorldExist(worldMeta.Id).then(overlapping => {
+                                    if(overlapping)
+                                        exec(undefined)
+                                    else {
+                                        worldMeta.Builds = [{
+                                            FileId: fileid,
+                                            BuildPlatform: worldMeta.BuildPlatform
+                                        }]
+                                        setWorldMeta(worldMeta).then(r => {
+                                            if (r)
+                                                exec(worldMeta)
+                                            else
+                                                exec(undefined)
+                                        }).catch(err => reject(err))
+                                    }
+                                }).catch(err => reject(err))
+                            }
+                            else
+                                exports.getWorldMetaById(id).then(wm => {
+                                    if(wm !== undefined){
+                                        let worldBuild
+                                        for(let i = 0; i < wm.Builds.length; i++){
+                                            let build = wm.Builds[i]
+                                            if(build.BuildPlatform === worldMeta.BuildPlatform)
+                                                worldBuild = build
+                                        }
+                                        if(worldBuild === undefined)
+                                            deleteAllOldWorldFiles(worldMeta).then(dssr => {
+                                                if(dssr){
+                                                    let newbuilds = ArrayTools.customFilterArray(wm.Builds, x => {
+                                                        if(x.BuildPlatform === worldMeta.BuildPlatform){
+                                                            FileUploading.DeleteFile(userid, x.FileId).catch(() => {})
+                                                            return false
+                                                        }
+                                                        else
+                                                            return true
+                                                    })
+                                                    newbuilds.push({
+                                                        FileId: fileid,
+                                                        BuildPlatform: worldMeta.BuildPlatform
+                                                    })
+                                                    wm.Builds = newbuilds
+                                                    setWorldMeta(wm).then(r => {
+                                                        if(r)
+                                                            exec(wm)
+                                                        else
+                                                            exec(undefined)
+                                                    }).catch(err => reject(err))
+                                                }
+                                                else
+                                                    exec(undefined)
+                                            }).catch(err => reject(err))
                                         else
-                                            exec(undefined)
-                                    }).catch(err => reject(err))
-                                }
-                            }).catch(err => reject(err))
+                                            deleteAllOldWorldFiles(worldMeta, userid, worldBuild.FileId).then(dssr => {
+                                                if(dssr){
+                                                    let newbuilds = ArrayTools.customFilterArray(wm.Builds, x => {
+                                                        if(x.BuildPlatform === worldMeta.BuildPlatform){
+                                                            FileUploading.DeleteFile(userid, x.FileId).catch(() => {})
+                                                            return false
+                                                        }
+                                                        else
+                                                            return true
+                                                    })
+                                                    newbuilds.push({
+                                                        FileId: fileid,
+                                                        BuildPlatform: worldMeta.BuildPlatform
+                                                    })
+                                                    wm.Builds = newbuilds
+                                                    setWorldMeta(wm).then(r => {
+                                                        if(r)
+                                                            exec(wm)
+                                                        else
+                                                            exec(undefined)
+                                                    }).catch(err => reject(err))
+                                                }
+                                                else
+                                                    exec(undefined)
+                                            }).catch(err => reject(err))
+                                    }
+                                    else
+                                        exec(undefined)
+                                }).catch(err => reject(err))
                         }
                         else
-                            exports.getWorldMetaById(id).then(wm => {
-                                if(wm !== undefined){
-                                    let worldBuild
-                                    for(let i = 0; i < wm.Builds.length; i++){
-                                        let build = wm.Builds[i]
-                                        if(build.BuildPlatform === worldMeta.BuildPlatform)
-                                            worldBuild = build
-                                    }
-                                    if(worldBuild === undefined)
-                                        deleteAllOldWorldFiles(worldMeta).then(dssr => {
-                                            if(dssr){
-                                                let newbuilds = ArrayTools.customFilterArray(wm.Builds, x => x.BuildPlatform === worldMeta.BuildPlatform)
-                                                newbuilds.push({
-                                                    FileId: fileid,
-                                                    BuildPlatform: worldMeta.BuildPlatform
-                                                })
-                                                wm.Builds = newbuilds
-                                                setWorldMeta(wm).then(r => {
-                                                    if(r)
-                                                        exec(wm)
-                                                    else
-                                                        exec(undefined)
-                                                }).catch(err => reject(err))
-                                            }
-                                            else
-                                                exec(undefined)
-                                        }).catch(err => reject(err))
-                                    else
-                                        deleteAllOldWorldFiles(worldMeta, userid, worldBuild.FileId).then(dssr => {
-                                            if(dssr){
-                                                let newbuilds = ArrayTools.customFilterArray(wm.Builds, x => x.BuildPlatform === worldMeta.BuildPlatform)
-                                                newbuilds.push({
-                                                    FileId: fileid,
-                                                    BuildPlatform: worldMeta.BuildPlatform
-                                                })
-                                                wm.Builds = newbuilds
-                                                setWorldMeta(wm).then(r => {
-                                                    if(r)
-                                                        exec(wm)
-                                                    else
-                                                        exec(undefined)
-                                                }).catch(err => reject(err))
-                                            }
-                                            else
-                                                exec(undefined)
-                                        }).catch(err => reject(err))
-                                }
-                                else
-                                    exec(undefined)
-                            }).catch(err => reject(err))
-                    }
-                    else
-                        exec(undefined)
-                }).catch(err => reject(err))
+                            exec(undefined)
+                    }).catch(err => reject(err))
+                }
+                else
+                    exec(undefined)
             }
             else
                 exec(undefined)
@@ -182,17 +231,35 @@ exports.handleFileUpload = function (userid, tokenContent, fileid, clientWorldMe
 
 function setWorldMeta(worldMeta){
     return new Promise((exec, reject) => {
-        SearchDatabase.updateDocument(WorldsCollection, {"Id": worldMeta.Id}, {$set: worldMeta}).then(r => {
-            if(r){
-                Database.set(WORLDDATA_DATABASE_PREFIX + worldMeta.Id, worldMeta).then(rr => {
-                    if(rr)
-                        exec(rr)
+        exports.doesWorldExist(worldMeta.Id).then(exists => {
+            if(exists){
+                SearchDatabase.updateDocument(WorldsCollection, {"Id": worldMeta.Id}, {$set: worldMeta}).then(r => {
+                    if(r){
+                        Database.set(WORLDDATA_DATABASE_PREFIX + worldMeta.Id, worldMeta).then(rr => {
+                            if(rr)
+                                exec(rr)
+                            else
+                                exec(false)
+                        }).catch(err => reject(err))
+                    }
                     else
                         exec(false)
                 }).catch(err => reject(err))
             }
-            else
-                exec(false)
+            else{
+                SearchDatabase.createDocument(WorldsCollection, worldMeta).then(sdr => {
+                    if(sdr){
+                        Database.set(WORLDDATA_DATABASE_PREFIX + worldMeta.Id, worldMeta).then(rr => {
+                            if(rr)
+                                exec(rr)
+                            else
+                                exec(false)
+                        }).catch(err => reject(err))
+                    }
+                    else
+                        exec(false)
+                }).catch(err => reject(err))
+            }
         }).catch(err => reject(err))
     })
 }
@@ -247,7 +314,7 @@ function isValidWorldMeta(ownerid, worldMeta){
                 if(typeof tag !== "string")
                     allowed = false
             }
-            if(!URLTools.isURLAllowed(worldMeta.ThumbnailURL))
+            if(worldMeta.ThumbnailURL !== "" && !URLTools.isURLAllowed(worldMeta.ThumbnailURL))
                 allowed = false
             if(worldMeta.IconURLs.length > MAX_WORLDICONS)
                 allowed = false

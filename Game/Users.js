@@ -1409,7 +1409,7 @@ exports.addAvatar = function (userid, avatarMeta) {
     return new Promise(exec => {
         exports.getUserDataFromUserId(userid).then(userdata => {
             if(userdata){
-                userdata.Avatars.push(avatarMeta)
+                userdata.Avatars.push(avatarMeta.Id)
                 setUserData(userdata).then(r => {
                     if(r)
                         exec(true)
@@ -1502,27 +1502,6 @@ exports.removeAvatarToken = function (userid, tokenContent, avatarId, avatarToke
     })
 }
 
-exports.getAvatarIdFromFileId = function (userid, fileId) {
-    return new Promise((exec, reject) => {
-        exports.getUserDataFromUserId(userid).then(user => {
-            if(user){
-                let selectedAvatar = undefined
-                for(let i = 0; i < user.Avatars.length; i++){
-                    let avatar = user.Avatars[i]
-                    if(avatar.FileId === fileId)
-                        selectedAvatar = avatar
-                }
-                if(selectedAvatar !== undefined)
-                    exec(selectedAvatar.Id)
-                else
-                    exec(undefined)
-            }
-            else
-                exec(undefined)
-        }).catch(err => reject(err))
-    })
-}
-
 exports.removeAvatar = function (userid, tokenContent, avatarId) {
     return new Promise(exec => {
         exports.isUserIdTokenValid(userid, tokenContent).then(validToken => {
@@ -1547,11 +1526,11 @@ exports.removeAvatar = function (userid, tokenContent, avatarId) {
     })
 }
 
-exports.addWorld = function (userid, avatarMeta) {
+exports.addWorld = function (userid, worldMeta) {
     return new Promise(exec => {
         exports.getUserDataFromUserId(userid).then(userdata => {
             if(userdata){
-                userdata.Worlds.push(avatarMeta)
+                userdata.Worlds.push(worldMeta.Id)
                 setUserData(userdata).then(r => {
                     if(r)
                         exec(true)
@@ -1640,27 +1619,6 @@ exports.removeWorldToken = function (userid, tokenContent, worldId, worldToken) 
             }
             else
                 exec(false)
-        }).catch(err => reject(err))
-    })
-}
-
-exports.getWorldIdFromFileId = function (userid, fileId) {
-    return new Promise((exec, reject) => {
-        exports.getUserDataFromUserId(userid).then(user => {
-            if(user){
-                let selectedWorld = undefined
-                for(let i = 0; i < user.Worlds.length; i++){
-                    let world = user.Worlds[i]
-                    if(world.FileId === fileId)
-                        selectedWorld = world
-                }
-                if(selectedWorld !== undefined)
-                    exec(selectedWorld.Id)
-                else
-                    exec(undefined)
-            }
-            else
-                exec(undefined)
         }).catch(err => reject(err))
     })
 }

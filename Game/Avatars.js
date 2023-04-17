@@ -12,6 +12,7 @@ let Users
 let Database
 let URLTools
 let SearchDatabase
+let FileUploading
 
 let AvatarsCollection
 
@@ -24,6 +25,10 @@ exports.init = function (ServerConfig, usersModule, databaseModule, urlToolsModu
     AvatarsCollection = avatarsCollection
     Logger.Log("Initialized Avatars!")
     return this
+}
+
+exports.SetFileUploadingModule = function (fileUploadModule){
+    FileUploading = fileUploadModule
 }
 
 exports.doesAvatarExist = function (avatarid) {
@@ -42,65 +47,10 @@ exports.getAvatarMetaById = function (avatarid) {
         exports.doesAvatarExist(avatarid).then(avatarExists => {
             if(avatarExists){
                 Database.get(AVATARDATA_DATABASE_PREFIX + avatarid).then(meta => {
-                    if(meta)
+                    if(meta){
+                        if(meta._id !== undefined)
+                            delete meta._id
                         exec(meta)
-                    else
-                        exec(undefined)
-                }).catch(err => reject(err))
-            }
-            else
-                exec(undefined)
-        }).catch(err => reject(err))
-    })
-}
-
-exports.handleFileUpload = function (userid, tokenContent, fileid, clientAvatarMeta) {
-    return new Promise((exec, reject) => {
-        Users.isUserIdTokenValid(userid, tokenContent).then(validToken => {
-            if(validToken){
-                isValidAvatarMeta(userid, clientAvatarMeta).then(validClientMeta => {
-                    if(validClientMeta){
-                        let avatarMeta = clientAvatarMeta
-                        let id = ID.new(ID.IDTypes.Avatar)
-                        if(avatarMeta.Id === undefined || avatarMeta.Id === ""){
-                            avatarMeta.Id = id
-                            avatarMeta.OwnerId = userid
-                            exports.doesAvatarExist(avatarMeta.Id).then(overlapping => {
-                                if(overlapping)
-                                    exec(undefined)
-                                else{
-                                    avatarMeta.Builds = [{
-                                        FileId: fileid,
-                                        BuildPlatform: avatarMeta.BuildPlatform
-                                    }]
-                                    setAvatarMeta(avatarMeta).then(r => {
-                                        if(r)
-                                            exec(avatarMeta)
-                                        else
-                                            exec(undefined)
-                                    }).catch(err => reject(err))
-                                }
-                            }).catch(err => reject(err))
-                        }
-                        else
-                            exports.getAvatarMetaById(id).then(am => {
-                                if(am !== undefined){
-                                    let newbuilds = ArrayTools.customFilterArray(am.Builds, x => x.BuildPlatform === avatarMeta.BuildPlatform)
-                                    newbuilds.push({
-                                        FileId: fileid,
-                                        BuildPlatform: avatarMeta.BuildPlatform
-                                    })
-                                    am.Builds = newbuilds
-                                    setAvatarMeta(am).then(r => {
-                                        if(r)
-                                            exec(am)
-                                        else
-                                            exec(undefined)
-                                    }).catch(err => reject(err))
-                                }
-                                else
-                                    exec(undefined)
-                            }).catch(err => reject(err))
                     }
                     else
                         exec(undefined)
@@ -112,19 +62,134 @@ exports.handleFileUpload = function (userid, tokenContent, fileid, clientAvatarM
     })
 }
 
+exports.getAvatarMetaByFileId = function (fileId) {
+    return new Promise(exec => {
+        SearchDatabase.find(AvatarsCollection, {"FileId": fileId}).then(avatars => {
+            let found = undefined
+            for(let i in avatars){
+                let avatar = avatars[i]
+                for (let j = 0; j < avatar.Builds.length; j++){
+                    let build = avatar.Builds[j]
+                    if(build.FileId === fileId)
+                        found = avatar
+                }
+            }
+            if(found !== undefined){
+                if(found._id !== undefined)
+                    delete found._id
+                exec(found)
+            }
+        }).catch(err => exec(undefined))
+    })
+}
+
+exports.handleFileUpload = function (userid, tokenContent, fileid, clientAvatarMeta) {
+    return new Promise((exec, reject) => {
+        Users.isUserIdTokenValid(userid, tokenContent).then(validToken => {
+            if(validToken){
+                let parsedClientAvatarMeta
+                let allow = false
+                try{
+                    parsedClientAvatarMeta = JSON.parse(clientAvatarMeta)
+                    allow = true
+                }
+                catch (e) {}
+                if(allow){
+                    isValidAvatarMeta(userid, parsedClientAvatarMeta).then(validClientMeta => {
+                        if(validClientMeta){
+                            let avatarMeta = parsedClientAvatarMeta
+                            let id = ID.new(ID.IDTypes.Avatar)
+                            if(avatarMeta.Id === undefined || avatarMeta.Id === ""){
+                                avatarMeta.Id = id
+                                avatarMeta.OwnerId = userid
+                                exports.doesAvatarExist(avatarMeta.Id).then(overlapping => {
+                                    if(overlapping)
+                                        exec(undefined)
+                                    else{
+                                        avatarMeta.Builds = [{
+                                            FileId: fileid,
+                                            BuildPlatform: avatarMeta.BuildPlatform
+                                        }]
+                                        setAvatarMeta(avatarMeta).then(r => {
+                                            if(r)
+                                                exec(avatarMeta)
+                                            else
+                                                exec(undefined)
+                                        }).catch(err => reject(err))
+                                    }
+                                }).catch(err => reject(err))
+                            }
+                            else
+                                exports.getAvatarMetaById(avatarMeta.Id).then(am => {
+                                    if(am !== undefined){
+                                        let newbuilds = ArrayTools.customFilterArray(am.Builds, x => {
+                                            if(x.BuildPlatform === avatarMeta.BuildPlatform){
+                                                FileUploading.DeleteFile(userid, x.FileId).catch(() => {})
+                                                return false
+                                            }
+                                            else
+                                                return true
+                                        })
+                                        newbuilds.push({
+                                            FileId: fileid,
+                                            BuildPlatform: avatarMeta.BuildPlatform
+                                        })
+                                        am.Builds = newbuilds
+                                        setAvatarMeta(am).then(r => {
+                                            if(r)
+                                                exec(am)
+                                            else
+                                                exec(undefined)
+                                        }).catch(err => reject(err))
+                                    }
+                                    else
+                                        exec(undefined)
+                                }).catch(err => reject(err))
+                        }
+                        else
+                            exec(undefined)
+                    }).catch(err => reject(err))
+                }
+                else
+                    exec(undefined)
+            }
+            else
+                exec(undefined)
+        }).catch(err => reject(err))
+    })
+}
+
 function setAvatarMeta(avatarMeta){
     return new Promise((exec, reject) => {
-        SearchDatabase.updateDocument(AvatarsCollection, {"Id": avatarMeta.Id}, {$set: avatarMeta}).then(r => {
-            if(r){
-                Database.set(AVATARDATA_DATABASE_PREFIX + avatarMeta.Id, avatarMeta).then(rr => {
-                    if(rr)
-                        exec(rr)
+        exports.doesAvatarExist(avatarMeta.Id).then(exists => {
+            if(exists){
+                SearchDatabase.updateDocument(AvatarsCollection, {"Id": avatarMeta.Id}, {$set: avatarMeta}).then(r => {
+                    if(r){
+                        Database.set(AVATARDATA_DATABASE_PREFIX + avatarMeta.Id, avatarMeta).then(rr => {
+                            if(rr)
+                                exec(rr)
+                            else
+                                exec(false)
+                        }).catch(err => reject(err))
+                    }
                     else
                         exec(false)
                 }).catch(err => reject(err))
             }
-            else
-                exec(false)
+            else{
+                SearchDatabase.createDocument(AvatarsCollection, avatarMeta).then(sdr => {
+                    if(sdr){
+                        Database.set(AVATARDATA_DATABASE_PREFIX + avatarMeta.Id, avatarMeta).then(rr => {
+                            if(rr)
+                                exec(rr)
+                            else
+                                exec(false)
+                        }).catch(err => reject(err))
+                    }
+                    else
+                        exec(false)
+                }).catch(err => reject(err))
+            }
         }).catch(err => reject(err))
     })
 }
@@ -167,7 +232,7 @@ function isValidAvatarMeta(ownerid, avatarMeta){
                 if(typeof tag !== "string")
                     allowed = false
             }
-            if(!URLTools.isURLAllowed(avatarMeta.ImageURL))
+            if(avatarMeta.ImageURL !== "" && !URLTools.isURLAllowed(avatarMeta.ImageURL))
                 allowed = false
             if(avatarMeta.BuildPlatform < exports.BuildPlatform.Windows || avatarMeta.BuildPlatform > exports.BuildPlatform.Android)
                 allowed = false

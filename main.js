@@ -67,6 +67,7 @@ Database.connect(ServerConfig.LoadedConfig.DatabaseInfo.DatabaseNumber,
             InviteCodes.init(d, u, ServerConfig)
             Emailing.init(ServerConfig)
             FileUploading.init(ServerConfig, d, u, sd, uploadsSearchCollection).then(fu => {
+                a.SetFileUploadingModule(fu)
                 let w = Worlds.init(ServerConfig, u, d, ut, fu, sd, worldsSearchCollection)
                 let ss
                 if(ServerConfig.LoadedConfig.UseHTTPS)
