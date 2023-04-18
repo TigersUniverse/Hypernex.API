@@ -661,7 +661,7 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
                     FileUploading.UploadFile(userid, file.originalname, filebuffer).then(r => {
                         if(r) {
                             if(avatarMeta !== undefined && r.UploadType === FileUploading.UploadType.Avatar){
-                                Avatars.handleFileUpload(userid, tokenContent, r.FileId, avatarMeta).then(verifiedAvatarMeta => {
+                                Avatars.handleFileUpload(userid, tokenContent, r.FileId, worldMeta).then(verifiedAvatarMeta => {
                                     if(verifiedAvatarMeta !== undefined){
                                         Users.addAvatar(userid, verifiedAvatarMeta).then(uaar => {
                                             if(uaar){
@@ -698,7 +698,7 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
                                 })
                             }
                             else if(worldMeta !== undefined && r.UploadType === FileUploading.UploadType.World){
-                                Worlds.handleFileUpload(userid, tokenContent, r.FileId, avatarMeta).then(verifiedWorldMeta => {
+                                Worlds.handleFileUpload(userid, tokenContent, r.FileId, worldMeta).then(verifiedWorldMeta => {
                                     if(verifiedWorldMeta !== undefined){
                                         Users.addWorld(userid, verifiedWorldMeta).then(uwar => {
                                             if(uwar){

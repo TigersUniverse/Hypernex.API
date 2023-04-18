@@ -98,6 +98,15 @@ exports.getAvatarMetaByFileId = function (userId, fileId) {
     })
 }
 
+function clone(oldAvatarMeta, newAvatarMeta){
+    newAvatarMeta.Publicity = oldAvatarMeta.Publicity
+    newAvatarMeta.Name = oldAvatarMeta.Name
+    newAvatarMeta.Description = oldAvatarMeta.Description
+    newAvatarMeta.Tags = oldAvatarMeta.Tags
+    newAvatarMeta.ImageURL = oldAvatarMeta.ImageURL
+    return newAvatarMeta
+}
+
 exports.handleFileUpload = function (userid, tokenContent, fileid, clientAvatarMeta) {
     return new Promise((exec, reject) => {
         Users.isUserIdTokenValid(userid, tokenContent).then(validToken => {
@@ -125,6 +134,7 @@ exports.handleFileUpload = function (userid, tokenContent, fileid, clientAvatarM
                                             FileId: fileid,
                                             BuildPlatform: avatarMeta.BuildPlatform
                                         }]
+                                        delete avatarMeta.BuildPlatform
                                         setAvatarMeta(avatarMeta).then(r => {
                                             if(r)
                                                 exec(avatarMeta)
@@ -150,6 +160,8 @@ exports.handleFileUpload = function (userid, tokenContent, fileid, clientAvatarM
                                             BuildPlatform: avatarMeta.BuildPlatform
                                         })
                                         am.Builds = newbuilds
+                                        delete avatarMeta.BuildPlatform
+                                        am = clone(avatarMeta, am)
                                         setAvatarMeta(am).then(r => {
                                             if(r)
                                                 exec(am)
@@ -176,10 +188,14 @@ exports.handleFileUpload = function (userid, tokenContent, fileid, clientAvatarM
 
 function setAvatarMeta(avatarMeta){
     return new Promise((exec, reject) => {
+        if(avatarMeta._id !== undefined)
+            delete avatarMeta._id
         exports.doesAvatarExist(avatarMeta.Id).then(exists => {
             if(exists){
                 SearchDatabase.updateDocument(AvatarsCollection, {"Id": avatarMeta.Id}, {$set: avatarMeta}).then(r => {
                     if(r){
+                        if(avatarMeta._id !== undefined)
+                            delete avatarMeta._id
                         Database.set(AVATARDATA_DATABASE_PREFIX + avatarMeta.Id, avatarMeta).then(rr => {
                             if(rr)
                                 exec(rr)
@@ -194,6 +210,8 @@ function setAvatarMeta(avatarMeta){
             else{
                 SearchDatabase.createDocument(AvatarsCollection, avatarMeta).then(sdr => {
                     if(sdr){
+                        if(avatarMeta._id !== undefined)
+                            delete avatarMeta._id
                         Database.set(AVATARDATA_DATABASE_PREFIX + avatarMeta.Id, avatarMeta).then(rr => {
                             if(rr)
                                 exec(rr)
