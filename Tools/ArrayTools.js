@@ -41,3 +41,7 @@ exports.customFind = function (haystack, isItem) {
     }
     return undefined
 }
+
+exports.removeFirstNeedle = function (haystack) {
+    haystack.shift()
+}

@@ -1,3 +1,5 @@
+const url = require("url")
+
 const ID = require("./../Data/ID.js")
 const ArrayTools = require("./../Tools/ArrayTools.js")
 const Logger = require("./../Logging/Logger.js")
@@ -96,13 +98,15 @@ exports.getWorldMetaByFileId = function (userId, fileId) {
     })
 }
 
-function deleteOldWorldFilesFromArray(worldScripts){
+function deleteOldWorldFilesFromArray(filesToRemove){
     return new Promise((exec, reject) => {
-        FileUploading.DeleteFile(worldScripts[0].UserId, worldScripts[0].FileId).then(r => {
+        let item = filesToRemove[0]
+        FileUploading.DeleteFile(item.UserId, item.FileId).then(r => {
             if(r){
-                let na = ArrayTools.customFilterArray(worldScripts, x => x.UserId === worldScripts[0].UserId && x.FileId === worldScripts[0].FileId)
-                if(na.length > 0)
-                    deleteOldWorldFilesFromArray(na).then(r => exec(r)).catch(() => exec(false))
+                // USERID AND FILEID
+                ArrayTools.removeFirstNeedle(filesToRemove)
+                if(filesToRemove.length > 0)
+                    deleteOldWorldFilesFromArray(filesToRemove).then(r => exec(r)).catch(err => reject(err))
                 else
                     exec(true)
             }
@@ -112,23 +116,30 @@ function deleteOldWorldFilesFromArray(worldScripts){
     })
 }
 
-function deleteAllOldWorldFiles (worldMeta, worldUserId, removeAll, skipBuilds) {
+function deleteAllOldWorldFiles (worldMeta, worldUserId, isDeleting, buildPlatform) {
     return new Promise((exec, reject) => {
         let assetsToRemove = []
-        for(let i = 0; i < worldMeta.ServerScripts.length; i++){
-            let serverScript = worldMeta.ServerScripts[i]
-            let url = new URL(serverScript)
-            let s = url.pathname.split("/")
-            let len = s.length
-            let fileId = s[len - 1]
-            let userId = s[len - 2]
-            assetsToRemove.push({UserId: userId, FileId: fileId})
-        }
-        if(!skipBuilds){
+        if(isDeleting === false){
             for(let i = 0; i < worldMeta.Builds.length; i++){
                 let build = worldMeta.Builds[i]
-                if(removeAll === true || build.BuildPlatform === worldMeta.BuildPlatform){
+                if(build.BuildPlatform === buildPlatform){
                     assetsToRemove.push({UserId: worldUserId, FileId: build.FileId})
+                    for(let j = 0; j < build.ServerScripts.length; j++){
+                        let serverScript = build.ServerScripts[j]
+                        let u = url.parse(serverScript).pathname.split("/")
+                        assetsToRemove.push({UserId: worldUserId, FileId: u[u.length - 1]})
+                    }
+                }
+            }
+        }
+        else{
+            for(let i = 0; i < worldMeta.Builds.length; i++){
+                let build = worldMeta.Builds[i]
+                assetsToRemove.push({UserId: worldUserId, FileId: build.FileId})
+                for(let j = 0; j < build.ServerScripts.length; j++){
+                    let serverScript = build.ServerScripts[j]
+                    let u = url.parse(serverScript).pathname.split("/")
+                    assetsToRemove.push({UserId: worldUserId, FileId: u[u.length - 1]})
                 }
             }
         }
@@ -200,7 +211,7 @@ exports.handleFileUpload = function (userid, tokenContent, fileid, clientWorldMe
                                         if(worldBuild === undefined)
                                             exec(undefined)
                                         else
-                                            deleteAllOldWorldFiles(worldMeta, userid, false, true).then(dssr => {
+                                            deleteAllOldWorldFiles(wm, userid, false, worldBuild.BuildPlatform).then(dssr => {
                                                 if(dssr){
                                                     let newbuilds = ArrayTools.customFilterArray(wm.Builds, x => {
                                                         if(x.BuildPlatform === worldMeta.BuildPlatform){
