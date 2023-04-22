@@ -131,9 +131,9 @@ exports.addWorldToken = function (userid, worldId) {
     })
 }
 
-exports.verifyWorldToken = function (fileId, tokenContent) {
+exports.verifyWorldToken = function (ownerid, fileId, tokenContent) {
     return new Promise((exec, reject) => {
-        exports.getWorldMetaByFileId(fileId).then(worldMeta => {
+        exports.getWorldMetaByFileId(ownerid, fileId).then(worldMeta => {
             if(worldMeta !== undefined){
                 if(worldMeta.Tokens === undefined)
                     exec(false)

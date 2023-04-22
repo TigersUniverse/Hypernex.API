@@ -131,9 +131,9 @@ exports.addAvatarToken = function (userid, avatarId) {
     })
 }
 
-exports.verifyAvatarToken = function (fileId, tokenContent) {
+exports.verifyAvatarToken = function (ownerid, fileId, tokenContent) {
     return new Promise((exec, reject) => {
-        exports.getAvatarMetaByFileId(fileId).then(avatarMeta => {
+        exports.getAvatarMetaByFileId(ownerid, fileId).then(avatarMeta => {
             if(avatarMeta !== undefined){
                 if(avatarMeta.Tokens === undefined)
                     exec(false)

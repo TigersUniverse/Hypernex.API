@@ -989,7 +989,7 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
                 if(fileData){
                     switch (fileData.FileMeta.UploadType) {
                         case FileUploading.UploadType.Avatar:{
-                            Avatars.verifyAvatarToken(fileid, filetoken).then(valid => {
+                            Avatars.verifyAvatarToken(userid, fileid, filetoken).then(valid => {
                                 if(valid){
                                     res.attachment(fileData.FileMeta.FileName)
                                     res.send(fileData.FileData.Body)
@@ -1003,7 +1003,7 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
                             break
                         }
                         case FileUploading.UploadType.World:{
-                            Worlds.verifyAvatarToken(fileid, filetoken).then(valid => {
+                            Worlds.verifyWorldToken(userid, fileid, filetoken).then(valid => {
                                 if(valid){
                                     res.attachment(fileData.FileMeta.FileName)
                                     res.send(fileData.FileData.Body)
