@@ -61,6 +61,7 @@ function createUserData(id, username, hashedPassword, email){
         OutgoingFriendRequests: [],
         FriendRequests: [],
         Friends: [],
+        Badges: [],
         Bio: {
             isPrivateAccount: false,
             /*
@@ -101,6 +102,7 @@ exports.censorUser = function (userdata){
     let d = {
         Id: userdata.Id,
         Username: userdata.Username,
+        Badges: userdata.Badges,
         Bio: {
             Status: exports.Status.Offline,
             StatusText: userdata.Bio.StatusText,
@@ -1427,85 +1429,6 @@ exports.addAvatar = function (userid, avatarMeta) {
     })
 }
 
-// Expose-able
-exports.addAvatarToken = function (userid, tokenContent, avatarId) {
-    return new Promise((exec, reject) => {
-        exports.isUserIdTokenValid(userid, tokenContent).then(tokenValid => {
-            if(tokenValid){
-                exports.getUserDataFromUserId(userid).then(user => {
-                    if(user){
-                        let selectedAvatar = undefined
-                        for(let i = 0; i < user.Avatars.length; i++){
-                            let avatar = user.Avatars[i]
-                            if(avatar.Id === avatarId)
-                                selectedAvatar = avatar
-                        }
-                        if(selectedAvatar !== undefined){
-                            if(selectedAvatar.Tokens === undefined)
-                                selectedAvatar.Tokens = []
-                            let token = ID.newSafeURLTokenPassword(50)
-                            selectedAvatar.Tokens.push(token)
-                            setUserData(user).then(r => {
-                                if(r)
-                                    exec(token)
-                                else
-                                    exec(undefined)
-                            }).catch(err => reject(err))
-                        }
-                        else
-                            exec(undefined)
-                    }
-                    else
-                        exec(undefined)
-                }).catch(err => reject(err))
-            }
-            else
-                exec(undefined)
-        }).catch(err => reject(err))
-    })
-}
-
-// Expose-able
-exports.removeAvatarToken = function (userid, tokenContent, avatarId, avatarToken) {
-    return new Promise((exec, reject) => {
-        exports.isUserIdTokenValid(userid, tokenContent).then(tokenValid => {
-            if(tokenValid){
-                exports.getUserDataFromUserId(userid).then(user => {
-                    if(user){
-                        let selectedAvatar = undefined
-                        for(let i = 0; i < user.Avatars.length; i++){
-                            let avatar = user.Avatars[i]
-                            if(avatar.Id === avatarId)
-                                selectedAvatar = avatar
-                        }
-                        if(selectedAvatar !== undefined){
-                            if(selectedAvatar.Tokens === undefined){
-                                selectedAvatar.Tokens = []
-                                exec(true)
-                            }
-                            else{
-                                selectedAvatar.Tokens = ArrayTools.filterArray(selectedAvatar.Tokens, avatarToken)
-                                setUserData(user).then(r => {
-                                    if(r)
-                                        exec(true)
-                                    else
-                                        exec(false)
-                                }).catch(err => reject(err))
-                            }
-                        }
-                        else
-                            exec(false)
-                    }
-                    else
-                        exec(false)
-                }).catch(err => reject(err))
-            }
-            else
-                exec(false)
-        }).catch(err => reject(err))
-    })
-}
-
 exports.removeAvatar = function (userid, tokenContent, avatarId) {
     return new Promise(exec => {
         exports.isUserIdTokenValid(userid, tokenContent).then(validToken => {
@@ -1549,85 +1472,6 @@ exports.addWorld = function (userid, worldMeta) {
             else
                 exec(false)
         }).catch(() => exec(false))
-    })
-}
-
-// Expose-able
-exports.addWorldToken = function (userid, tokenContent, worldId) {
-    return new Promise((exec, reject) => {
-        exports.isUserIdTokenValid(userid, tokenContent).then(tokenValid => {
-            if(tokenValid){
-                exports.getUserDataFromUserId(userid).then(user => {
-                    if(user){
-                        let selectedWorld = undefined
-                        for(let i = 0; i < user.Worlds.length; i++){
-                            let world = user.Worlds[i]
-                            if(world.Id === worldId)
-                                selectedWorld = world
-                        }
-                        if(selectedWorld !== undefined){
-                            if(selectedWorld.Tokens === undefined)
-                                selectedWorld.Tokens = []
-                            let token = ID.newSafeURLTokenPassword(50)
-                            selectedWorld.Tokens.push(token)
-                            setUserData(user).then(r => {
-                                if(r)
-                                    exec(token)
-                                else
-                                    exec(undefined)
-                            }).catch(err => reject(err))
-                        }
-                        else
-                            exec(undefined)
-                    }
-                    else
-                        exec(undefined)
-                }).catch(err => reject(err))
-            }
-            else
-                exec(undefined)
-        }).catch(err => reject(err))
-    })
-}
-
-// Expose-able
-exports.removeWorldToken = function (userid, tokenContent, worldId, worldToken) {
-    return new Promise((exec, reject) => {
-        exports.isUserIdTokenValid(userid, tokenContent).then(tokenValid => {
-            if(tokenValid){
-                exports.getUserDataFromUserId(userid).then(user => {
-                    if(user){
-                        let selectedWorld = undefined
-                        for(let i = 0; i < user.Worlds.length; i++){
-                            let world = user.Worlds[i]
-                            if(world.Id === worldId)
-                                selectedWorld = world
-                        }
-                        if(selectedWorld !== undefined){
-                            if(selectedWorld.Tokens === undefined){
-                                selectedWorld.Tokens = []
-                                exec(true)
-                            }
-                            else{
-                                selectedWorld.Tokens = ArrayTools.filterArray(selectedWorld.Tokens, worldToken)
-                                setUserData(user).then(r => {
-                                    if(r)
-                                        exec(true)
-                                    else
-                                        exec(false)
-                                }).catch(err => reject(err))
-                            }
-                        }
-                        else
-                            exec(false)
-                    }
-                    else
-                        exec(false)
-                }).catch(err => reject(err))
-            }
-            else
-                exec(false)
-        }).catch(err => reject(err))
     })
 }
 

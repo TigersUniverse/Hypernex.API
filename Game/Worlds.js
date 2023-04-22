@@ -1,6 +1,7 @@
 const url = require("url")
 
 const ID = require("./../Data/ID.js")
+const GenericToken = require("./../Security/GenericToken.js")
 const ArrayTools = require("./../Tools/ArrayTools.js")
 const Logger = require("./../Logging/Logger.js")
 
@@ -95,6 +96,80 @@ exports.getWorldMetaByFileId = function (userId, fileId) {
             else
                 exec(undefined)
         }).catch(() => exec(undefined))
+    })
+}
+
+function verifyTokens(tokens){
+    return ArrayTools.customFilterArray(tokens, x => GenericToken.isTokenValid(x))
+}
+
+// Do not expose!
+exports.addWorldToken = function (userid, worldId) {
+    return new Promise((exec, reject) => {
+        exports.getWorldMetaById(worldId).then(worldMeta => {
+            if(worldMeta !== undefined){
+                if(worldMeta.OwnerId === userid){
+                    if(worldMeta.Tokens === undefined)
+                        worldMeta.Tokens = []
+                    else
+                        worldMeta.Tokens = verifyTokens(worldMeta.Tokens)
+                    let newToken = GenericToken.createToken(undefined, 1, false, true)
+                    worldMeta.Tokens.push(newToken)
+                    setWorldMeta(worldMeta).then(r => {
+                        if(r)
+                            exec(newToken)
+                        else
+                            exec(undefined)
+                    }).catch(err => reject(err))
+                }
+                else
+                    exec(undefined)
+            }
+            else
+                reject(new Error("Failed to find World!"))
+        }).catch(err => reject(err))
+    })
+}
+
+exports.verifyWorldToken = function (fileId, tokenContent) {
+    return new Promise((exec, reject) => {
+        exports.getWorldMetaByFileId(fileId).then(worldMeta => {
+            if(worldMeta !== undefined){
+                if(worldMeta.Tokens === undefined)
+                    exec(false)
+                else
+                    exec(ArrayTools.customFind(worldMeta.Tokens, x => x.content === tokenContent && GenericToken.isTokenValid(x)) !== undefined)
+            }
+            else
+                reject(new Error("Failed to find World!"))
+        }).catch(err => reject(err))
+    })
+}
+
+exports.removeWorldToken = function (userid, worldId, tokenContent) {
+    return new Promise((exec, reject) => {
+        exports.getWorldMetaById(worldId).then(worldMeta => {
+            if(worldMeta !== undefined){
+                if(worldMeta.OwnerId === userid){
+                    if(worldMeta.Tokens === undefined)
+                        exec(true)
+                    else{
+                        worldMeta.Tokens = verifyTokens(worldMeta.Tokens)
+                        worldMeta.Tokens = ArrayTools.customFilterArray(worldMeta.Tokens, x => x.content !== tokenContent)
+                        setWorldMeta(worldMeta).then(r => {
+                            if(r)
+                                exec(true)
+                            else
+                                exec(false)
+                        }).catch(err => reject(err))
+                    }
+                }
+                else
+                    exec(false)
+            }
+            else
+                reject(new Error("Failed to find World!"))
+        }).catch(err => reject(err))
     })
 }
 
@@ -374,7 +449,7 @@ function isValidWorldMeta(ownerid, worldMeta){
             }
             for(let i = 0; i < worldMeta.ServerScripts.length; i++){
                 let serverScript = worldMeta.ServerScripts[i]
-                if(!URLTools.isURLAllowed(serverScript))
+                if(!URLTools.isURLAllowed(serverScript, true))
                     allowed = false
             }
             if(worldMeta.BuildPlatform < exports.BuildPlatform.Windows || worldMeta.BuildPlatform > exports.BuildPlatform.Android)

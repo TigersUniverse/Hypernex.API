@@ -10,14 +10,16 @@ exports.Init = function (serverConfig){
     return this
 }
 
-exports.isURLAllowed = function (rawURL){
+exports.isURLAllowed = function (rawURL, onlyLocal){
+    if(onlyLocal === undefined)
+        onlyLocal = false
     try{
         let urlObject = url.parse(rawURL, true)
         let allowed = ServerConfig.LoadedConfig.TrustAllDomains
         for(let i = 0; i < ServerConfig.LoadedConfig.AllowedDomains.length; i++){
             let allowedHost = ServerConfig.LoadedConfig.AllowedDomains[i]
             if(urlObject.host.toLowerCase() === allowedHost.toLowerCase())
-                allowed = true
+                allowed = !onlyLocal && true
         }
         if(urlObject.host.toLowerCase() === url.parse(ServerConfig.LoadedConfig.BaseURL).host.toLowerCase())
             allowed = true

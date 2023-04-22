@@ -1,6 +1,7 @@
 const ID = require("./../Data/ID.js")
 const ArrayTools = require("./../Tools/ArrayTools.js")
 const Logger = require("./../Logging/Logger.js")
+const GenericToken = require("../Security/GenericToken");
 
 const AVATARDATA_DATABASE_PREFIX = "avatar/"
 
@@ -95,6 +96,80 @@ exports.getAvatarMetaByFileId = function (userId, fileId) {
             else
                 exec(undefined)
         }).catch(() => exec(undefined))
+    })
+}
+
+function verifyTokens(tokens){
+    return ArrayTools.customFilterArray(tokens, x => GenericToken.isTokenValid(x))
+}
+
+// Do not expose!
+exports.addAvatarToken = function (userid, avatarId) {
+    return new Promise((exec, reject) => {
+        exports.getAvatarMetaByFileId(avatarId).then(avatarMeta => {
+            if(avatarMeta !== undefined){
+                if(avatarMeta.OwnerId === userid){
+                    if(avatarMeta.Tokens === undefined)
+                        avatarMeta.Tokens = []
+                    else
+                        avatarMeta.Tokens = verifyTokens(avatarMeta.Tokens)
+                    let newToken = GenericToken.createToken(undefined, 1, false, true)
+                    avatarMeta.Tokens.push(newToken)
+                    setAvatarMeta(avatarMeta).then(r => {
+                        if(r)
+                            exec(newToken)
+                        else
+                            exec(undefined)
+                    }).catch(err => reject(err))
+                }
+                else
+                    exec(undefined)
+            }
+            else
+                reject(new Error("Failed to find Avatar!"))
+        }).catch(err => reject(err))
+    })
+}
+
+exports.verifyAvatarToken = function (fileId, tokenContent) {
+    return new Promise((exec, reject) => {
+        exports.getAvatarMetaByFileId(fileId).then(avatarMeta => {
+            if(avatarMeta !== undefined){
+                if(avatarMeta.Tokens === undefined)
+                    exec(false)
+                else
+                    exec(ArrayTools.customFind(avatarMeta.Tokens, x => x.content === tokenContent && GenericToken.isTokenValid(x)) !== undefined)
+            }
+            else
+                reject(new Error("Failed to find Avatar!"))
+        }).catch(err => reject(err))
+    })
+}
+
+exports.removeAvatarToken = function (userid, avatarId, tokenContent) {
+    return new Promise((exec, reject) => {
+        exports.getAvatarMetaByFileId(avatarId).then(avatarMeta => {
+            if(avatarMeta !== undefined){
+                if(avatarMeta.OwnerId === userid){
+                    if(avatarMeta.Tokens === undefined)
+                        exec(true)
+                    else{
+                        avatarMeta.Tokens = verifyTokens(avatarMeta.Tokens)
+                        avatarMeta.Tokens = ArrayTools.customFilterArray(avatarMeta.Tokens, x => x.content !== tokenContent)
+                        setAvatarMeta(avatarMeta).then(r => {
+                            if(r)
+                                exec(true)
+                            else
+                                exec(false)
+                        }).catch(err => reject(err))
+                    }
+                }
+                else
+                    exec(false)
+            }
+            else
+                reject(new Error("Failed to find Avatar!"))
+        }).catch(err => reject(err))
     })
 }
 
