@@ -17,7 +17,7 @@ exports.createToken = function (app, hoursExpire, noExpire, safeTokenContent) {
     if(safeTokenContent === true)
         tokenId = ID.newSafeURLTokenPassword(50)
     else
-        ID.newTokenPassword(50)
+        tokenId = ID.newTokenPassword(50)
     return {
         content: tokenId,
         dateCreated: DateTools.getUnixTime(new Date()),
