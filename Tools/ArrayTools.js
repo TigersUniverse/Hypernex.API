@@ -45,3 +45,10 @@ exports.customFind = function (haystack, isItem) {
 exports.removeFirstNeedle = function (haystack) {
     haystack.shift()
 }
+
+exports.clone = function (haystack) {
+    let c = []
+    for(let i = 0; i < haystack.length; i++)
+        c[i] = haystack[i]
+    return c
+}
