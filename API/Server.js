@@ -1016,6 +1016,21 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
                             })
                             break
                         }
+                        // This assumes that the client is authed without a GameServerToken
+                        case FileUploading.UploadType.ServerScript:{
+                            if(SocketServer.AreGameServerCredentialsValid(filetoken, "")){
+                                FileUploading.getFileById(userid, fileid).then(fileData => {
+                                    res.attachment(fileData.FileMeta.FileName)
+                                    res.send(fileData.FileData.Body)
+                                }).catch(err => {
+                                    Logger.Error("Failed to get file for reason " + err)
+                                    res.end(APIMessage.craftAPIMessage(false, "Failed to get file!"))
+                                })
+                            }
+                            else
+                                res.end(APIMessage.craftAPIMessage(false, "Invalid GameServer credentials!"))
+                            break
+                        }
                         default:
                             res.end(APIMessage.craftAPIMessage(false, "Incorrect Endpoint for Getting File"))
                             break

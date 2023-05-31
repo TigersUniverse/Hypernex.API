@@ -95,6 +95,20 @@ function removeSocketById(id){
             socketObject.Socket.destroy()
         }
         catch(_){}
+        if(socketObject.Meta.userId !== undefined){
+            let dup = ArrayTools.clone(socketObject.Meta.ConnectedInstances)
+            for(let i = 0; i < dup.length; i++){
+                let connectedInstance = dup[i]
+                let instance = getInstanceById(connectedInstance.gameServerId, connectedInstance.instanceId)
+                if(instance !== undefined)
+                    removeUserFromInstance(instance, socketObject.Meta.userId)
+            }
+        }
+        if(socketObject.Meta.gameServerId !== undefined){
+            let instances = getAllInstances(socketObject.Meta.gameServerId)
+            for(let i = 0; i < instances.length; i++)
+                destroyInstance(socketObject.Meta.gameServerId, instances[i].InstanceId)
+        }
         Sockets = ArrayTools.customFilterArray(Sockets, x => x.Id !== id)
     }
 }
@@ -103,6 +117,13 @@ exports.isUserIdConnected = function (userId) {
     if(userId === undefined)
         return false
     return getSocketObjectByUserId(userId) !== undefined
+}
+
+exports.AreGameServerCredentialsValid = function (gameServerId, serverTokenContent) {
+    let gameServerSocketObject = getSocketObjectByGameServerId(gameServerId)
+    if(gameServerSocketObject !== undefined)
+        return gameServerSocketObject.Meta.isVerified
+    return false
 }
 
 function onSocketConnect(socket){
@@ -159,7 +180,7 @@ function onSocketConnect(socket){
                         }).catch(_ => removeSocketById(socketObject.Id))
                     }
                 }
-                else if(parsedMessage.serverTokenContent !== undefined){
+                else{
                     // Verify Game Server
                     if(ServerConfig.LoadedConfig.AllowAnyGameServer || ArrayTools.find(ServerConfig.LoadedConfig.GameServerTokens, parsedMessage.serverTokenContent) !== undefined){
                         let gameServerId = ID.new(ID.IDTypes.GameServer)
@@ -168,6 +189,11 @@ function onSocketConnect(socket){
                         socketObject.Meta.gameServerId = gameServerId
                         socketObject.Meta.serverTokenContent = parsedMessage.serverTokenContent
                         socketObject.Meta.isVerified = true
+                        socketObject.Socket.send(SocketMessage.craftSocketMessage("sendauth", {
+                            gameServerId: socketObject.Meta.gameServerId,
+                            gameServerToken: socketObject.Meta.serverTokenContent
+                        }))
+                        handleMessage(socketObject, parsedMessage)
                     }
                     else
                         removeSocketById(socketObject.Id)
@@ -209,6 +235,7 @@ function handleMessage(socketObject, parsedMessage){
                                 instanceId: parsedMessage.args.instanceId,
                                 userId: parsedMessage.args.userId
                             }))
+                            sendInstanceUpdate(socketObject, instance)
                         }
                     }
                 }).catch(_ => {})
@@ -223,6 +250,7 @@ function handleMessage(socketObject, parsedMessage){
                         instanceId: parsedMessage.args.instanceId,
                         userId: parsedMessage.args.userId
                     }))
+                    sendInstanceUpdate(socketObject, instance)
                 }
                 break
             }
@@ -244,6 +272,7 @@ function handleMessage(socketObject, parsedMessage){
                                 instanceId: parsedMessage.args.instanceId,
                                 userId: parsedMessage.args.userId
                             }))
+                            sendInstanceUpdate(socketObject, instance)
                         }
                     }
                 }).catch(_ => {})
@@ -258,6 +287,7 @@ function handleMessage(socketObject, parsedMessage){
                         instanceId: parsedMessage.args.instanceId,
                         userId: parsedMessage.args.userId
                     }))
+                    sendInstanceUpdate(socketObject, instance)
                 }
                 break
             }
@@ -272,16 +302,24 @@ function handleMessage(socketObject, parsedMessage){
                 if(instance !== undefined && !instance.Readied){
                     let userSocketObject = getSocketObjectByUserId(instance.InstanceCreatorId)
                     if(userSocketObject !== undefined){
+                        let tempUserToken = ID.newTokenPassword(50)
+                        socketObject.Socket.send(SocketMessage.craftSocketMessage("tempusertoken", {
+                            tempUserToken: tempUserToken,
+                            userId: instance.InstanceCreatorId,
+                            instanceId: parsedMessage.args.instanceId
+                        }))
                         userSocketObject.Socket.send(SocketMessage.craftSocketMessage("instanceopened", {
                             gameServerId: socketObject.Meta.gameServerId,
                             instanceId: instance.InstanceId,
+                            InstanceProtocol: instance.InstanceProtocol,
                             Uri: instance.Uri,
-                            worldId: instance.WorldId
+                            worldId: instance.WorldId,
+                            tempUserToken: tempUserToken,
                         }))
                         instance.Readied = true
                     }
                     else
-                        DestroyInstance(socketObject.Meta.gameServerId, parsedMessage.args.instanceId)
+                        destroyInstance(socketObject.Meta.gameServerId, parsedMessage.args.instanceId)
                 }
                 break
             }
@@ -289,7 +327,7 @@ function handleMessage(socketObject, parsedMessage){
                 // Required Args: {args.instanceId}
                 let instance = getInstanceById(socketObject.Meta.gameServerId, parsedMessage.args.instanceId)
                 if(instance !== undefined)
-                    DestroyInstance(socketObject.Meta.gameServerId, parsedMessage.args.instanceId)
+                    destroyInstance(socketObject.Meta.gameServerId, parsedMessage.args.instanceId)
             }
         }
     }
@@ -398,7 +436,7 @@ function handleMessage(socketObject, parsedMessage){
                 break
             }
             case "requestnewinstance":{
-                createRequestedInstance(parsedMessage.args.worldId, parsedMessage.userId, parsedMessage.args.instancePublicity, parsedMessage.args.instanceProtocol).then(r => {
+                createRequestedInstance(parsedMessage.args.worldId, socketObject, parsedMessage.args.instancePublicity, parsedMessage.args.instanceProtocol).then(r => {
                     if(r)
                         socketObject.Socket.send(SocketMessage.craftSocketMessage("createdtemporaryinstance", {}))
                     else
@@ -425,7 +463,7 @@ function getRequestedInstanceFromId(id){
 function getInstanceById(gameServerId, id){
     for(let i = 0; i < Instances.length; i++){
         let instance = Instances[i]
-        if(instance.GameServerId === gameServerId && instance.Id === id)
+        if(instance.GameServerId === gameServerId && instance.InstanceId === id)
             return instance
     }
     return undefined
@@ -477,7 +515,7 @@ function createInstanceFromRequestedId(socketObject, requestedInstanceId, uri){
             let meta = {
                 Readied: false,
                 Uri: uri,
-                GameServerId: socketObject.gameServerId,
+                GameServerId: socketObject.Meta.gameServerId,
                 TemporaryId: requestedInstance.TemporaryId,
                 InstanceId: undefined,
                 WorldId: requestedInstance.WorldId,
@@ -525,15 +563,33 @@ function removeUserFromInstance(instance, userid){
                 return x.instanceId !== instance.InstanceId;
             })
         }
-        if(count !== instance.ConnectedUsers.length)
+        if(count !== instance.ConnectedUsers.length) {
             gameServerSocketObject.Socket.send(SocketMessage.craftSocketMessage("kickeduser", {
                 instanceId: instance.InstanceId,
                 userId: userid
             }))
+            sendInstanceUpdate(gameServerSocketObject, instance)
+        }
     }
 }
 
-function DestroyInstance(gameServerId, instanceId){
+function getAllInstances(gameServerId){
+    let instances = []
+    for(let i = 0; i < Instances; i++){
+        let instance = Instances[i]
+        if(instance.GameServerId === gameServerId)
+            instances.push(instance)
+    }
+    return instances
+}
+
+function sendInstanceUpdate(gameServerSocketObject, instance){
+    gameServerSocketObject.Socket.send(SocketMessage.craftSocketMessage("updatedinstance", {
+        instanceMeta: instance
+    }))
+}
+
+function destroyInstance(gameServerId, instanceId){
     let instance = getInstanceById(gameServerId, instanceId)
     if(instance !== undefined){
         let dup = ArrayTools.clone(instance.ConnectedUsers)
@@ -657,9 +713,15 @@ function userJoinedInstance(gameServerId, instanceId, userSocketObject){
         }
         isUserWelcomeInInstance(instance, userSocketObject.Meta.userId).then(isWelcome => {
             if(isWelcome){
-                instance.ConnectedUsers.push(userSocketObject.Meta.userId)
-                userSocketObject.Meta.ConnectedInstances.push({gameServerId: gameServerId, instanceId: instanceId})
-                exec(true)
+                let gameServerSocketObject = getSocketObjectByGameServerId(gameServerId)
+                if(gameServerSocketObject !== undefined){
+                    instance.ConnectedUsers.push(userSocketObject.Meta.userId)
+                    userSocketObject.Meta.ConnectedInstances.push({gameServerId: gameServerId, instanceId: instanceId})
+                    sendInstanceUpdate(gameServerSocketObject, instance)
+                    exec(true)
+                }
+                else
+                    exec(false)
             }
             else
                 exec(false)
