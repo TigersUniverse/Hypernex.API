@@ -67,30 +67,34 @@ exports.getWorldMetaByFileId = function (userId, fileId) {
     return new Promise(exec => {
         Users.getUserDataFromUserId(userId).then(userMeta => {
             if(userMeta !== undefined){
-                let found = false
-                let loop = 0
-                for(let e = 0; e < userMeta.Worlds.length; e++){
-                    let worldId = userMeta.Worlds[e]
-                    exports.getWorldMetaById(worldId).then(world => {
-                        if(found || world !== undefined){
-                            for (let j = 0; j < world.Builds.length; j++){
-                                let build = world.Builds[j]
-                                if(build.FileId === fileId){
-                                    if(world._id !== undefined)
-                                        delete world._id
-                                    found = true
-                                    exec(world)
+                let maxWorldChecks = userMeta.Worlds.length
+                if(maxWorldChecks === 0)
+                    exec(undefined)
+                else{
+                    let r
+                    let checks = 0
+                    for(let i = 0; i < maxWorldChecks; i++){
+                        let avatarId = userMeta.Worlds[i]
+                        exports.getWorldMetaById(avatarId).then(worldMeta => {
+                            if(worldMeta !== undefined){
+                                for(let j = 0; j < worldMeta.Builds.length; j++){
+                                    let build = worldMeta.Builds[j]
+                                    if(build.FileId === fileId){
+                                        if(worldMeta._id !== undefined)
+                                            delete worldMeta._id
+                                        r = worldMeta
+                                    }
                                 }
                             }
-                            if(loop === userMeta.Worlds.length && !found)
-                                exec(undefined)
-                        }
-                        loop++
-                    }).catch(() => {
-                        loop++
-                        if(loop === userMeta.Worlds.length && !found)
-                            exec(undefined)
-                    })
+                            checks++
+                        }).catch(() => checks++)
+                        let x = setInterval(() => {
+                            if(checks >= maxWorldChecks){
+                                exec(r)
+                                clearInterval(x)
+                            }
+                        }, 10)
+                    }
                 }
             }
             else
@@ -106,7 +110,7 @@ function verifyTokens(tokens){
 // Do not expose!
 exports.addWorldToken = function (userid, worldId) {
     return new Promise((exec, reject) => {
-        exports.getWorldMetaById(worldId).then(worldMeta => {
+        exports.getWorldMetaById(userid, worldId).then(worldMeta => {
             if(worldMeta !== undefined){
                 if(worldMeta.OwnerId === userid){
                     if(worldMeta.Tokens === undefined)

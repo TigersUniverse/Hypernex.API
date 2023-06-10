@@ -67,30 +67,34 @@ exports.getAvatarMetaByFileId = function (userId, fileId) {
     return new Promise(exec => {
         Users.getUserDataFromUserId(userId).then(userMeta => {
             if(userMeta !== undefined){
-                let found = false
-                let loop = 0
-                for(let e = 0; e < userMeta.Avatars.length; e++){
-                    let avatarId = userMeta.Avatars[e]
-                    exports.getAvatarMetaById(avatarId).then(avatar => {
-                        if(found || avatar !== undefined){
-                            for (let j = 0; j < avatar.Builds.length; j++){
-                                let build = avatar.Builds[j]
-                                if(build.FileId === fileId){
-                                    if(avatar._id !== undefined)
-                                        delete avatar._id
-                                    found = true
-                                    exec(avatar)
+                let maxAvatarChecks = userMeta.Avatars.length
+                if(maxAvatarChecks === 0)
+                    exec(undefined)
+                else{
+                    let r
+                    let checks = 0
+                    for(let i = 0; i < maxAvatarChecks; i++){
+                        let avatarId = userMeta.Avatars[i]
+                        exports.getAvatarMetaById(avatarId).then(avatarMeta => {
+                            if(avatarMeta !== undefined){
+                                for(let j = 0; j < avatarMeta.Builds.length; j++){
+                                    let build = avatarMeta.Builds[j]
+                                    if(build.FileId === fileId){
+                                        if(avatarMeta._id !== undefined)
+                                            delete avatarMeta._id
+                                        r = avatarMeta
+                                    }
                                 }
                             }
-                            if(loop === userMeta.Avatars.length && !found)
-                                exec(undefined)
-                        }
-                        loop++
-                    }).catch(() => {
-                        loop++
-                        if(loop === userMeta.Avatars.length && !found)
-                            exec(undefined)
-                    })
+                            checks++
+                        }).catch(() => checks++)
+                        let x = setInterval(() => {
+                            if(checks >= maxAvatarChecks){
+                                exec(r)
+                                clearInterval(x)
+                            }
+                        }, 10)
+                    }
                 }
             }
             else
@@ -106,7 +110,7 @@ function verifyTokens(tokens){
 // Do not expose!
 exports.addAvatarToken = function (userid, avatarId) {
     return new Promise((exec, reject) => {
-        exports.getAvatarMetaByFileId(avatarId).then(avatarMeta => {
+        exports.getAvatarMetaById(avatarId).then(avatarMeta => {
             if(avatarMeta !== undefined){
                 if(avatarMeta.OwnerId === userid){
                     if(avatarMeta.Tokens === undefined)
@@ -148,7 +152,7 @@ exports.verifyAvatarToken = function (ownerid, fileId, tokenContent) {
 
 exports.removeAvatarToken = function (userid, avatarId, tokenContent) {
     return new Promise((exec, reject) => {
-        exports.getAvatarMetaByFileId(avatarId).then(avatarMeta => {
+        exports.getAvatarMetaById(avatarId).then(avatarMeta => {
             if(avatarMeta !== undefined){
                 if(avatarMeta.OwnerId === userid){
                     if(avatarMeta.Tokens === undefined)

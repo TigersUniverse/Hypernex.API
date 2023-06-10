@@ -106,6 +106,7 @@ function removeSocketById(id){
         }
         if(socketObject.Meta.gameServerId !== undefined){
             let instances = getAllInstances(socketObject.Meta.gameServerId)
+            // TODO: bugged?
             for(let i = 0; i < instances.length; i++)
                 destroyInstance(socketObject.Meta.gameServerId, instances[i].InstanceId)
         }
@@ -726,6 +727,66 @@ function userJoinedInstance(gameServerId, instanceId, userSocketObject){
             else
                 exec(false)
         }).catch(err => reject(err))
+    })
+}
+
+exports.GetSafeInstances = function (user) {
+    return new Promise(exec => {
+        let instanceLoops = 0
+        let is = []
+        let l = Instances.length
+        let instanceClones = ArrayTools.clone(Instances)
+        for(let i = 0; i < l; i++){
+            let instance = instanceClones[i]
+            let safeinstance = {
+                GameServerId: instance.GameServerId,
+                InstanceId: instance.InstanceId,
+                InstanceCreatorId: instance.InstanceCreatorId,
+                InstancePublicity: instance.InstancePublicity,
+                InstanceProtocol: instance.InstanceProtocol,
+                ConnectedUsers: instance.ConnectedUsers,
+                WorldId: instance.WorldId
+            }
+            if(ArrayTools.find(instance.BannedUsers, user.Id) === undefined){
+                if(instance.InstancePublicity === exports.InstancePublicity.Anyone){
+                    is.push(safeinstance)
+                    instanceLoops++
+                }
+                else if(instance.InstancePublicity === exports.InstancePublicity.Acquaintances){
+                    let added = false
+                    for(let u = 0; u < instance.ConnectedUsers.length; u++){
+                        if(!added){
+                            Users.getUserDataFromUserId(instance.ConnectedUsers[u]).then(pu => {
+                                if(pu !== undefined){
+                                    if(!added && ArrayTools.find(pu.Friends, user.Id) !== undefined){
+                                        added = true
+                                        is.push(safeinstance)
+                                    }
+                                }
+                                instanceLoops++
+                            }).catch(() => instanceLoops++)
+                        }
+                    }
+                }
+                else if(instance.InstancePublicity === exports.InstancePublicity.Friends){
+                    if(ArrayTools.find(user.Friends, instance.InstanceCreatorId))
+                        is.push(safeinstance)
+                    instanceLoops++
+                }
+                else{
+                    if(ArrayTools.find(instance.InvitedUsers, user.Id))
+                        is.push(safeinstance)
+                    instanceLoops++
+                }
+            }
+        }
+        // TODO: This could *probably* be better
+        let interval = setInterval(() => {
+            if(instanceLoops >= l){
+                exec(is)
+                clearInterval(interval)
+            }
+        }, 10)
     })
 }
 

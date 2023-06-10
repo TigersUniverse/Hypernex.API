@@ -11,6 +11,8 @@ exports.createToken = function (app, hoursExpire, noExpire, safeTokenContent) {
     // Default time is 7 days
     if(hoursExpire === undefined)
         hoursExpire = DateTools.getUnixTime(date.addHours(new Date(), DAY_HOUR * 7))
+    else
+        hoursExpire = DateTools.getUnixTime(date.addHours(new Date(), DAY_HOUR * hoursExpire))
     if(noExpire)
         hoursExpire = undefined
     let tokenId
