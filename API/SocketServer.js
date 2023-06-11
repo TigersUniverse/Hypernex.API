@@ -599,6 +599,11 @@ function destroyInstance(gameServerId, instanceId){
             removeUserFromInstance(instance, connectedUser)
         }
     }
+    Instances = ArrayTools.customFilterArray(Instances, x => {
+        if(x.GameServerId !== gameServerId)
+            return true
+        return x.InstanceId !== instanceId
+    })
 }
 
 function canUserInvite(instance, userIdBeingInvited, userIdInviting){
