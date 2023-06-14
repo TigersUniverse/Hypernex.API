@@ -338,7 +338,7 @@ function handleMessage(socketObject, parsedMessage){
                 // Required Args: {args.gameServerId, args.instanceId}
                 let gameServerSocket = getSocketObjectByGameServerId(parsedMessage.args.gameServerId)
                 if(gameServerSocket !== undefined){
-                    userJoinedInstance(parsedMessage.args.gameServerId, parsedMessage.args.instanceId, socketObject.Meta.userId).then(canJoin => {
+                    userJoinedInstance(parsedMessage.args.gameServerId, parsedMessage.args.instanceId, socketObject).then(canJoin => {
                         if(canJoin){
                             // if we can join, we know the instance exists
                             let instance = getInstanceById(parsedMessage.args.gameServerId, parsedMessage.args.instanceId)
@@ -474,7 +474,7 @@ function createRequestedInstance(worldId, userSocketObject, instancePublicity, i
     return new Promise((exec, reject) => {
         Worlds.getWorldMetaById(worldId).then(worldMeta => {
             if(worldMeta){
-                if(worldMeta.OwnerId === userSocketObject.Meta.userId || worldMeta.Publicity.Anyone){
+                if(worldMeta.OwnerId === userSocketObject.Meta.userId || worldMeta.Publicity === Worlds.Publicity.Anyone){
                     let requestedMeta = {
                         TemporaryId: ID.newSafeURLTokenPassword(25),
                         WorldId: worldId,
@@ -576,7 +576,7 @@ function removeUserFromInstance(instance, userid){
 
 function getAllInstances(gameServerId){
     let instances = []
-    for(let i = 0; i < Instances; i++){
+    for(let i = 0; i < Instances.length; i++){
         let instance = Instances[i]
         if(instance.GameServerId === gameServerId)
             instances.push(instance)
