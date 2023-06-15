@@ -658,7 +658,9 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
             Users.isUserIdTokenValid(userid, tokenContent).then(validToken => {
                 if(validToken){
                     let filebuffer = fs.readFileSync(file.path)
-                    FileUploading.UploadFile(userid, file.originalname, filebuffer).then(r => {
+                    let fileHash = FileUploading.getFileHash(filebuffer)
+                    // TODO: Test fileHash
+                    FileUploading.UploadFile(userid, file.originalname, filebuffer, fileHash).then(r => {
                         if(r) {
                             if(avatarMeta !== undefined && r.UploadType === FileUploading.UploadType.Avatar){
                                 Avatars.handleFileUpload(userid, tokenContent, r.FileId, avatarMeta).then(verifiedAvatarMeta => {
@@ -910,6 +912,27 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
             }).catch(err => {
                 Logger.Error("Failed to search by World Name for reason " + err)
                 res.end(APIMessage.craftAPIMessage(false, "Failed to Search by World Name"))
+            })
+        }
+        else
+            res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+    })
+
+    app.get(getAPIEndpoint() + "filemeta/:userid/:fileid", function (req, res) {
+        let userid = req.params.userid
+        let fileid = req.params.fileid
+        if(isUserBodyValid(userid, "string") && isUserBodyValid(fileid, "string")){
+            FileUploading.getFileMetaById(userid, fileid).then(fileMeta => {
+                if(fileMeta !== undefined){
+                    res.end(APIMessage.craftAPIMessage(true, "Got FileMeta!", {
+                        FileMeta: fileMeta
+                    }))
+                }
+                else
+                    res.end(APIMessage.craftAPIMessage(false, "Failed to get FileMeta!"))
+            }).catch(err => {
+                Logger.Error("Failed to get FileMeta for reason " + err)
+                res.end(APIMessage.craftAPIMessage(false, "Failed to get FileMeta!"))
             })
         }
         else

@@ -421,7 +421,7 @@ function handleMessage(socketObject, parsedMessage){
                         avatarId: parsedMessage.args.avatarId,
                         avatarToken: parsedMessage.args.avatarToken
                     }))
-                    socketObject.Socket.send(SocketMessage.craftSocketMessage("sharedavatartoken", {
+                     socketObject.Socket.send(SocketMessage.craftSocketMessage("sharedavatartoken", {
                         fromUserId: parsedMessage.userId,
                         targetUserId: parsedMessage.args.targetUserId,
                         avatarId: parsedMessage.args.avatarId,

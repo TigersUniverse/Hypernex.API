@@ -1,6 +1,7 @@
 const path = require("path")
-const streamify = require("streamify")
+const stream = require("stream")
 const AWS = require("aws-sdk")
+const crypto = require("crypto")
 
 const ID = require("./ID.js")
 const ArrayTools = require("./../Tools/ArrayTools.js")
@@ -9,6 +10,9 @@ const Logger = require("./../Logging/Logger.js")
 let Config
 let Users
 let SearchDatabase
+let molecular
+let AVService
+let broker
 
 let UploadsCollection
 let s3
@@ -28,8 +32,28 @@ exports.init = function (c, d, u, searchDatabaseModule, uploadsCollection) {
                 Config.LoadedConfig.SpacesInfo.Region + ".digitaloceanspaces.com"),
             s3ForcePathStyle: true
         })
-        Logger.Log("Initialized FileUploading!")
-        exec(this)
+        if(c.LoadedConfig.AVSettings.ScanFiles){
+            molecular = require("moleculer")
+            AVService = require("moleculer-antivirus")
+            broker = new molecular.ServiceBroker({ logger: console })
+            broker.createService({
+                mixins: AVService,
+                settings:{
+                    clamdHost: c.LoadedConfig.AVSettings.clamdHost,
+                    clamdPort: c.LoadedConfig.AVSettings.clamdPort,
+                    clamdTimeout: c.LoadedConfig.AVSettings.clamdTimeout,
+                    clamdHealthCheckInterval: c.LoadedConfig.AVSettings.clamdHealthCheckInterval
+                }
+            })
+            broker.start().then(() => {
+                Logger.Log("Initialized FileUploading!")
+                exec(this)
+            })
+        }
+        else{
+            Logger.Log("Initialized FileUploading!")
+            exec(this)
+        }
     })
 }
 
@@ -204,13 +228,15 @@ exports.getFileMetaById = function (userid, fileId) {
     })
 }
 
-function createFileData (userid, fileId, fileKey, fileExtension, uploadType) {
+// FILEDATA CANNOT CONTAIN SENSITIVE INFORMATION
+function createFileData (userid, fileId, fileKey, fileExtension, uploadType, hash) {
     return {
         UserId: userid,
         FileId: fileId,
         FileName: fileId + fileExtension,
         UploadType: uploadType,
-        Key: fileKey
+        Key: fileKey,
+        Hash: hash
     }
 }
 
@@ -236,8 +262,12 @@ exports.getFileById = function (userid, fileId) {
     })
 }
 
+exports.getFileHash = function (data) {
+    return crypto.createHash("md5").update(data).digest("hex")
+}
+
 // THIS WILL NOT AUTHENTICATE A USER FOR YOU!
-exports.UploadFile = function (userid, fileName, buffer) {
+exports.UploadFile = function (userid, fileName, buffer, hash) {
     return new Promise((exec, reject) => {
         let fileType = path.extname(fileName)
         let uploadType = getUploadTypeFromFileExtension(fileType)
@@ -248,30 +278,50 @@ exports.UploadFile = function (userid, fileName, buffer) {
                 exports.doesFileIdExist(userid, id).then(r => {
                     if(!r){
                         const key = userid + "/" + id + ft
-                        const data = createFileData(userid, id, key, fileType, uploadType)
-                        //const stream = streamify(buffer)
-                        //broker.call('antivirus.scan', stream).then(scanResult => {
-                            //if(!scanResult.infected){
-                                s3.upload({
-                                    Body: buffer,
-                                    Bucket: Config.LoadedConfig.SpacesInfo.SpaceName,
-                                    Key: key
-                                }, function (err) {
-                                    if(err){
-                                        reject(err)
-                                        return
-                                    }
-                                    addUploadDataToUser(userid, data).then(ur => {
-                                        if(ur)
-                                            exec(data)
-                                        else
-                                            reject(new Error("Failed to Upload MetaData for File"))
-                                    }).catch(uerr => reject(uerr))
-                                })
-                            //}
-                            //else
-                                //reject(new Error("File is infected!"))
-                        //})
+                        const data = createFileData(userid, id, key, fileType, uploadType, hash)
+                        if(Config.LoadedConfig.AVSettings.ScanFiles){
+                            const s = stream.Readable.from(buffer)
+                            broker.call('antivirus.scan', s).then(scanResult => {
+                                if(!scanResult.infected){
+                                    s3.upload({
+                                        Body: buffer,
+                                        Bucket: Config.LoadedConfig.SpacesInfo.SpaceName,
+                                        Key: key
+                                    }, function (err) {
+                                        if(err){
+                                            reject(err)
+                                            return
+                                        }
+                                        addUploadDataToUser(userid, data).then(ur => {
+                                            if(ur)
+                                                exec(data)
+                                            else
+                                                reject(new Error("Failed to Upload MetaData for File"))
+                                        }).catch(uerr => reject(uerr))
+                                    })
+                                }
+                                else
+                                    reject(new Error("File is infected!"))
+                            }).catch(serr => reject(serr))
+                        }
+                        else{
+                            s3.upload({
+                                Body: buffer,
+                                Bucket: Config.LoadedConfig.SpacesInfo.SpaceName,
+                                Key: key
+                            }, function (err) {
+                                if(err){
+                                    reject(err)
+                                    return
+                                }
+                                addUploadDataToUser(userid, data).then(ur => {
+                                    if(ur)
+                                        exec(data)
+                                    else
+                                        reject(new Error("Failed to Upload MetaData for File"))
+                                }).catch(uerr => reject(uerr))
+                            })
+                        }
                     }
                     else
                         reject(new Error("Id Already Exists!"))

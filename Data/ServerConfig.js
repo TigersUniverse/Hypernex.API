@@ -49,6 +49,13 @@ exports.LoadedConfig = {
         // This is only for User Invite Codes, not global ones
         RemoveCodeAfterUse: true
     },
+    AVSettings:{
+        ScanFiles: false,
+        clamdPort: null,
+        clamdHost: null,
+        clamdTimeout: null,
+        clamdHealthCheckInterval: null
+    },
     GameServerTokens: [],
     AllowAnyGameServer: false
 }
