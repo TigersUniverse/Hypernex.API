@@ -269,7 +269,7 @@ exports.getFileHash = function (data) {
 // THIS WILL NOT AUTHENTICATE A USER FOR YOU!
 exports.UploadFile = function (userid, fileName, buffer, hash) {
     return new Promise((exec, reject) => {
-        let fileType = path.extname(fileName)
+        let fileType = path.extname(fileName).toLowerCase()
         let uploadType = getUploadTypeFromFileExtension(fileType)
         if(uploadType !== undefined){
             let ft = isValidFileType(fileType, uploadType)
