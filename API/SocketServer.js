@@ -795,6 +795,26 @@ exports.GetSafeInstances = function (user) {
     })
 }
 
+exports.GetPublicInstancesOfWorld = function (worldId) {
+    let instances = []
+    for (let i = 0; i < Instances.length; i++){
+        let instance = Instances[i]
+        if(instance.InstancePublicity === exports.InstancePublicity.Anyone){
+            let safeinstance = {
+                GameServerId: instance.GameServerId,
+                InstanceId: instance.InstanceId,
+                InstanceCreatorId: instance.InstanceCreatorId,
+                InstancePublicity: instance.InstancePublicity,
+                InstanceProtocol: instance.InstanceProtocol,
+                ConnectedUsers: instance.ConnectedUsers,
+                WorldId: instance.WorldId
+            }
+            instances.push(safeinstance)
+        }
+    }
+    return instances
+}
+
 exports.InstancePublicity = {
     Anyone: 0,
     Acquaintances: 1,

@@ -229,14 +229,15 @@ exports.getFileMetaById = function (userid, fileId) {
 }
 
 // FILEDATA CANNOT CONTAIN SENSITIVE INFORMATION
-function createFileData (userid, fileId, fileKey, fileExtension, uploadType, hash) {
+function createFileData (userid, fileId, fileKey, fileExtension, uploadType, hash, size) {
     return {
         UserId: userid,
         FileId: fileId,
         FileName: fileId + fileExtension,
         UploadType: uploadType,
         Key: fileKey,
-        Hash: hash
+        Hash: hash,
+        Size: size
     }
 }
 
@@ -267,7 +268,7 @@ exports.getFileHash = function (data) {
 }
 
 // THIS WILL NOT AUTHENTICATE A USER FOR YOU!
-exports.UploadFile = function (userid, fileName, buffer, hash) {
+exports.UploadFile = function (userid, fileName, buffer, hash, stats) {
     return new Promise((exec, reject) => {
         let fileType = path.extname(fileName).toLowerCase()
         let uploadType = getUploadTypeFromFileExtension(fileType)
@@ -278,7 +279,7 @@ exports.UploadFile = function (userid, fileName, buffer, hash) {
                 exports.doesFileIdExist(userid, id).then(r => {
                     if(!r){
                         const key = userid + "/" + id + ft
-                        const data = createFileData(userid, id, key, fileType, uploadType, hash)
+                        const data = createFileData(userid, id, key, fileType, uploadType, hash, stats.size)
                         if(Config.LoadedConfig.AVSettings.ScanFiles){
                             const s = stream.Readable.from(buffer)
                             broker.call('antivirus.scan', s).then(scanResult => {

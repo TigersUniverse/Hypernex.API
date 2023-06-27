@@ -400,16 +400,32 @@ function isValidAvatarMeta(ownerid, avatarMeta){
     })
 }
 
-exports.safeSearchAvatar = function (name) {
+function safeAvatars(avatars, itemsPerPage, page){
+    let candidates = []
+    let i = 0
+    i += page * itemsPerPage
+    if(avatars.length < i)
+        return candidates
+    for(i in avatars){
+        let avatar = avatars[i]
+        if(avatar.Publicity === exports.Publicity.Anyone)
+            candidates.push(avatar.Id)
+    }
+    return candidates
+}
+
+exports.safeSearchAvatar = function (name, itemsPerPage, page) {
     return new Promise((exec, reject) => {
         SearchDatabase.find(AvatarsCollection, {"Name": {$regex: `.*${name}.*`, $options: 'i'}}).then(avatars => {
-            let candidates = []
-            for(let i in avatars){
-                let avatar = avatars[i]
-                if(avatar.Publicity === exports.Publicity.Anyone)
-                    candidates.push(avatar.Id)
-            }
-            exec(candidates)
+            exec(safeAvatars(avatars, itemsPerPage, page))
+        }).catch(err => reject(err))
+    })
+}
+
+exports.safeSearchAvatarTag = function (tag, itemsPerPage, page) {
+    return new Promise((exec, reject) => {
+        SearchDatabase.find(AvatarsCollection, {Tags: tag}).then(avatars => {
+            exec(safeAvatars(avatars, itemsPerPage, page))
         }).catch(err => reject(err))
     })
 }

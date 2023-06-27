@@ -489,16 +489,32 @@ function isValidWorldMeta(ownerid, worldMeta){
     })
 }
 
-exports.safeSearchWorld = function (name) {
+function safeWorlds(worlds, itemsPerPage, page){
+    let candidates = []
+    let i = 0
+    i += page * itemsPerPage
+    if(worlds.length < i)
+        return candidates
+    for(i in worlds){
+        let world = worlds[i]
+        if(world.Publicity === exports.Publicity.Anyone)
+            candidates.push(world.Id)
+    }
+    return candidates
+}
+
+exports.safeSearchWorld = function (name, itemsPerPage, page) {
     return new Promise((exec, reject) => {
         SearchDatabase.find(WorldsCollection, {"Name": {$regex: `.*${name}.*`, $options: 'i'}}).then(worlds => {
-            let candidates = []
-            for(let i in worlds){
-                let world = worlds[i]
-                if(world.Publicity === exports.Publicity.Anyone)
-                    candidates.push(world.Id)
-            }
-            exec(candidates)
+            exec(safeWorlds(worlds, itemsPerPage, page))
+        }).catch(err => reject(err))
+    })
+}
+
+exports.safeSearchWorldTag = function (tag, itemsPerPage, page) {
+    return new Promise((exec, reject) => {
+        SearchDatabase.find(WorldsCollection, {Tags: tag}).then(worlds => {
+            exec(safeWorlds(worlds, itemsPerPage, page))
         }).catch(err => reject(err))
     })
 }

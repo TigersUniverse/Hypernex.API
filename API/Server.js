@@ -658,9 +658,10 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
             Users.isUserIdTokenValid(userid, tokenContent).then(validToken => {
                 if(validToken){
                     let filebuffer = fs.readFileSync(file.path)
+                    let filestats = fs.statSync(file.path)
                     let fileHash = FileUploading.getFileHash(filebuffer)
                     // TODO: Test fileHash
-                    FileUploading.UploadFile(userid, file.originalname, filebuffer, fileHash).then(r => {
+                    FileUploading.UploadFile(userid, file.originalname, filebuffer, fileHash, filestats).then(r => {
                         if(r) {
                             if(avatarMeta !== undefined && r.UploadType === FileUploading.UploadType.Avatar){
                                 Avatars.handleFileUpload(userid, tokenContent, r.FileId, avatarMeta).then(verifiedAvatarMeta => {
@@ -886,10 +887,14 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
             res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
     })
 
-    app.get(getAPIEndpoint() + "search/avatar/:name", function (req, res) {
+    app.get(getAPIEndpoint() + "search/avatar/:name/:itemsPerPage/:pageNumber", function (req, res) {
         let name = req.params.name
+        let itemsPerPage = parseInt(req.params.itemsPerPage)
+        if(itemsPerPage > 50)
+            itemsPerPage = 50
+        let pageNumber = parseInt(req.params.pageNumber)
         if(isUserBodyValid(name, "string")){
-            Avatars.safeSearchAvatar(name).then(arr => {
+            Avatars.safeSearchAvatar(name, itemsPerPage, pageNumber).then(arr => {
                 res.end(APIMessage.craftAPIMessage(true, "Found Candidates!", {
                     Candidates: arr
                 }))
@@ -902,10 +907,54 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
             res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
     })
 
-    app.get(getAPIEndpoint() + "search/world/:name", function (req, res) {
+    app.get(getAPIEndpoint() + "tag/avatar/:name/:itemsPerPage/:pageNumber", function (req, res) {
+        let tag = req.params.name
+        let itemsPerPage = parseInt(req.params.itemsPerPage)
+        if(itemsPerPage > 50)
+            itemsPerPage = 50
+        let pageNumber = parseInt(req.params.pageNumber)
+        if(isUserBodyValid(tag, "string")){
+            Avatars.safeSearchAvatarTag(tag, itemsPerPage, pageNumber).then(arr => {
+                res.end(APIMessage.craftAPIMessage(true, "Found Candidates!", {
+                    Candidates: arr
+                }))
+            }).catch(err => {
+                Logger.Error("Failed to search by Avatar Name for reason " + err)
+                res.end(APIMessage.craftAPIMessage(false, "Failed to Search by Avatar Name"))
+            })
+        }
+        else
+            res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+    })
+
+    app.get(getAPIEndpoint() + "search/world/:name/:itemsPerPage/:pageNumber", function (req, res) {
         let name = req.params.name
+        let itemsPerPage = parseInt(req.params.itemsPerPage)
+        if(itemsPerPage > 50)
+            itemsPerPage = 50
+        let pageNumber = parseInt(req.params.pageNumber)
         if(isUserBodyValid(name, "string")){
-            Worlds.safeSearchWorld(name).then(arr => {
+            Worlds.safeSearchWorld(name, itemsPerPage, pageNumber).then(arr => {
+                res.end(APIMessage.craftAPIMessage(true, "Found Candidates!", {
+                    Candidates: arr
+                }))
+            }).catch(err => {
+                Logger.Error("Failed to search by World Name for reason " + err)
+                res.end(APIMessage.craftAPIMessage(false, "Failed to Search by World Name"))
+            })
+        }
+        else
+            res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+    })
+
+    app.get(getAPIEndpoint() + "tag/world/:name/:itemsPerPage/:pageNumber", function (req, res) {
+        let tag = req.params.name
+        let itemsPerPage = parseInt(req.params.itemsPerPage)
+        if(itemsPerPage > 50)
+            itemsPerPage = 50
+        let pageNumber = parseInt(req.params.pageNumber)
+        if(isUserBodyValid(tag, "string")){
+            Worlds.safeSearchWorldTag(tag, itemsPerPage, pageNumber).then(arr => {
                 res.end(APIMessage.craftAPIMessage(true, "Found Candidates!", {
                     Candidates: arr
                 }))
@@ -1259,6 +1308,18 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
                 else
                     res.end(APIMessage.craftAPIMessage(false, "Invalid Token!"))
             }).catch(() => res.end(APIMessage.craftAPIMessage(false, "Failed to get Instances!")))
+        }
+        else
+            res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+    })
+
+    app.get(getAPIEndpoint() + "instances/:worldid", function (req, res) {
+        let worldId = req.params.worldid
+        if(isUserBodyValid(worldId, "string")){
+            let instances = SocketServer.GetPublicInstancesOfWorld(worldId)
+            res.end(APIMessage.craftAPIMessage(true, "Got instances!", {
+                SafeInstances: instances
+            }))
         }
         else
             res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
