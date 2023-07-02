@@ -117,7 +117,7 @@ exports.Pronouns = {
 exports.isValidPronounId = function (id) {
     if(Number.isNaN(id))
         return false
-    return id >= -1 && id <=13
+    return id >= -3 && id <=13
 }
 
 exports.getPronounGroupById = function (id) {
