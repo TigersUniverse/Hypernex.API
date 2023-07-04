@@ -5,6 +5,7 @@ const bodyParser = require("body-parser");
 const path = require("path")
 
 const ArrayTools = require("./../Tools/ArrayTools.js")
+const ChunkUploading = require("./../Tools/ChunkUploading.js")
 const Logger = require("./../Logging/Logger.js")
 const APIMessage = require("./APIMessage.js")
 
@@ -641,125 +642,212 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
 
     function deleteFile(path){
         try{
-            fs.unlinkSync(path)
+            if(fs.existsSync(path))
+                fs.unlinkSync(path)
         }
         catch(e){
             console.log(e)
         }
     }
 
+    function onUploadFile(res, file, userid, tokenContent, avatarMeta, worldMeta){
+        return new Promise((exec, reject) => {
+            if(isUserBodyValid(userid, "string") && isUserBodyValid(tokenContent, "string") && file !== undefined){
+                Users.isUserIdTokenValid(userid, tokenContent).then(validToken => {
+                    if(validToken){
+                        let filebuffer = fs.readFileSync(file.path)
+                        let filestats = fs.statSync(file.path)
+                        let fileHash = FileUploading.getFileHash(filebuffer)
+                        FileUploading.UploadFile(userid, file.originalname, filebuffer, fileHash, filestats).then(r => {
+                            if(r) {
+                                if(avatarMeta !== undefined && r.UploadType === FileUploading.UploadType.Avatar){
+                                    Avatars.handleFileUpload(userid, tokenContent, r.FileId, avatarMeta).then(verifiedAvatarMeta => {
+                                        if(verifiedAvatarMeta !== undefined){
+                                            Users.addAvatar(userid, verifiedAvatarMeta).then(uaar => {
+                                                if(uaar){
+                                                    res.end(APIMessage.craftAPIMessage(true, "Uploaded Avatar!", {
+                                                        UploadData: r,
+                                                        AvatarId: verifiedAvatarMeta.Id
+                                                    }))
+                                                    exec(true)
+                                                    deleteFile(file.path)
+                                                }
+                                                else{
+                                                    res.end(APIMessage.craftAPIMessage(false, "Failed to upload Avatar!"))
+                                                    FileUploading.DeleteFile(userid, r.FileId).catch(() => {})
+                                                    Avatars.deleteAvatar(verifiedAvatarMeta.Id)
+                                                    reject(new Error("Failed to upload avatar!"))
+                                                    deleteFile(file.path)
+                                                }
+                                            }).catch(err => {
+                                                Logger.Error("Failed to upload avatar for reason " + err)
+                                                res.end(APIMessage.craftAPIMessage(false, "Failed to upload avatar!"))
+                                                FileUploading.DeleteFile(userid, r.FileId).catch(() => {})
+                                                Avatars.deleteAvatar(verifiedAvatarMeta.Id)
+                                                reject(new Error("Failed to upload avatar!"))
+                                                deleteFile(file.path)
+                                            })
+                                        }
+                                        else{
+                                            res.end(APIMessage.craftAPIMessage(false, "Failed to upload Avatar!"))
+                                            FileUploading.DeleteFile(userid, r.FileId).catch(() => {})
+                                            reject(new Error("Failed to upload avatar!"))
+                                            deleteFile(file.path)
+                                        }
+                                    }).catch(err => {
+                                        Logger.Error("Failed to upload avatar for reason " + err)
+                                        res.end(APIMessage.craftAPIMessage(false, "Failed to upload avatar!"))
+                                        FileUploading.DeleteFile(userid, r.FileId).catch(() => {})
+                                        reject(new Error("Failed to upload avatar!"))
+                                        deleteFile(file.path)
+                                    })
+                                }
+                                else if(worldMeta !== undefined && r.UploadType === FileUploading.UploadType.World){
+                                    Worlds.handleFileUpload(userid, tokenContent, r.FileId, worldMeta).then(verifiedWorldMeta => {
+                                        if(verifiedWorldMeta !== undefined){
+                                            Users.addWorld(userid, verifiedWorldMeta).then(uwar => {
+                                                if(uwar){
+                                                    res.end(APIMessage.craftAPIMessage(true, "Uploaded World!", {
+                                                        UploadData: r,
+                                                        WorldId: verifiedWorldMeta.Id
+                                                    }))
+                                                    exec()
+                                                    deleteFile(file.path)
+                                                }
+                                                else{
+                                                    res.end(APIMessage.craftAPIMessage(false, "Failed to upload World!"))
+                                                    FileUploading.DeleteFile(userid, r.FileId).catch(() => {})
+                                                    Worlds.deleteWorld(verifiedWorldMeta.Id)
+                                                    reject(new Error("Failed to upload world!"))
+                                                    deleteFile(file.path)
+                                                }
+                                            }).catch(err => {
+                                                Logger.Error("Failed to upload world for reason " + err)
+                                                res.end(APIMessage.craftAPIMessage(false, "Failed to upload world!"))
+                                                FileUploading.DeleteFile(userid, r.FileId).catch(() => {})
+                                                reject(new Error("Failed to upload world!"))
+                                                deleteFile(file.path)
+                                            })
+                                        }
+                                        else{
+                                            res.end(APIMessage.craftAPIMessage(false, "Failed to upload World!"))
+                                            FileUploading.DeleteFile(userid, r.FileId).catch(() => {})
+                                            reject(new Error("Failed to upload World!"))
+                                            deleteFile(file.path)
+                                        }
+                                    }).catch(err => {
+                                        Logger.Error("Failed to upload world for reason " + err)
+                                        res.end(APIMessage.craftAPIMessage(false, "Failed to upload world!"))
+                                        FileUploading.DeleteFile(userid, r.FileId).catch(() => {})
+                                        reject(new Error("Failed to upload world!"))
+                                        deleteFile(file.path)
+                                    })
+                                }
+                                else {
+                                    res.end(APIMessage.craftAPIMessage(true, "Uploaded File!", {
+                                        UploadData: r
+                                    }))
+                                    exec()
+                                    deleteFile(file.path)
+                                }
+                            }
+                            else {
+                                res.end(APIMessage.craftAPIMessage(false, "Failed to upload file!"))
+                                reject(new Error("Failed to upload file!"))
+                                deleteFile(file.path)
+                            }
+                        }).catch(err => {
+                            Logger.Error("Failed to upload file for reason " + err)
+                            res.end(APIMessage.craftAPIMessage(false, "Failed to upload file!"))
+                            reject(new Error("Failed to upload file!"))
+                            deleteFile(file.path)
+                        })
+                    }
+                    else {
+                        res.end(APIMessage.craftAPIMessage(false, "Failed to authenticate user!"))
+                        reject(new Error("Failed to authenticate user!"))
+                        deleteFile(file.path)
+                    }
+                }).catch(err => {
+                    Logger.Error("Failed to upload file for reason " + err)
+                    res.end(APIMessage.craftAPIMessage(false, "Failed to upload file!"))
+                    reject(new Error("Failed to upload file!"))
+                    deleteFile(file.path)
+                })
+            }
+            else {
+                res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+                reject(new Error("Invalid parameters!"))
+                deleteFile(file.path)
+            }
+        })
+    }
+
+    // single file upload
     app.post(getAPIEndpoint() + "upload", upload.single('file'), function (req, res) {
         let file = req.file
         let userid = req.body.userid
         let tokenContent = req.body.tokenContent
         let avatarMeta = req.body.avatarMeta
         let worldMeta = req.body.worldMeta
-        if(isUserBodyValid(userid, "string") && isUserBodyValid(tokenContent, "string")){
+        onUploadFile(res, file, userid, tokenContent, avatarMeta, worldMeta)
+    })
+
+    app.post(getAPIEndpoint() + "uploadPart", upload.single('file'), function (req, res) {
+        let file = req.file
+        let originalFileName = req.body.originalFileName
+        // MUST START AT 0
+        let chunkNumber = Number(req.body.chunkNumber)
+        let amountOfChunks = Number(req.body.amountOfChunks)
+        let chunkId = req.body.chunkId
+        let userid = req.body.userid
+        let tokenContent = req.body.tokenContent
+        let avatarMeta = req.body.avatarMeta
+        let worldMeta = req.body.worldMeta
+        if(isUserBodyValid(userid, "string") && isUserBodyValid(tokenContent, "string") && file !== undefined){
             Users.isUserIdTokenValid(userid, tokenContent).then(validToken => {
                 if(validToken){
+                    if(!ChunkUploading.DoesIdExist(chunkId))
+                        chunkId = ChunkUploading.GetId()
                     let filebuffer = fs.readFileSync(file.path)
-                    let filestats = fs.statSync(file.path)
-                    let fileHash = FileUploading.getFileHash(filebuffer)
-                    // TODO: Test fileHash
-                    FileUploading.UploadFile(userid, file.originalname, filebuffer, fileHash, filestats).then(r => {
-                        if(r) {
-                            if(avatarMeta !== undefined && r.UploadType === FileUploading.UploadType.Avatar){
-                                Avatars.handleFileUpload(userid, tokenContent, r.FileId, avatarMeta).then(verifiedAvatarMeta => {
-                                    if(verifiedAvatarMeta !== undefined){
-                                        Users.addAvatar(userid, verifiedAvatarMeta).then(uaar => {
-                                            if(uaar){
-                                                res.end(APIMessage.craftAPIMessage(true, "Uploaded Avatar!", {
-                                                    UploadData: r,
-                                                    AvatarId: verifiedAvatarMeta.Id
-                                                }))
-                                                deleteFile(file.path)
-                                            }
-                                            else{
-                                                res.end(APIMessage.craftAPIMessage(false, "Failed to upload Avatar!"))
-                                                FileUploading.DeleteFile(userid, r.FileId).catch(() => {})
-                                                Avatars.deleteAvatar(verifiedAvatarMeta.Id)
-                                                deleteFile(file.path)
-                                            }
-                                        }).catch(err => {
-                                            Logger.Error("Failed to upload avatar for reason " + err)
-                                            res.end(APIMessage.craftAPIMessage(false, "Failed to upload avatar!"))
-                                            FileUploading.DeleteFile(userid, r.FileId).catch(() => {})
-                                            Avatars.deleteAvatar(verifiedAvatarMeta.Id)
-                                            deleteFile(file.path)
-                                        })
-                                    }
-                                    else{
-                                        res.end(APIMessage.craftAPIMessage(false, "Failed to upload Avatar!"))
-                                        FileUploading.DeleteFile(userid, r.FileId).catch(() => {})
-                                        deleteFile(file.path)
-                                    }
-                                }).catch(err => {
-                                    Logger.Error("Failed to upload avatar for reason " + err)
-                                    res.end(APIMessage.craftAPIMessage(false, "Failed to upload avatar!"))
-                                    FileUploading.DeleteFile(userid, r.FileId).catch(() => {})
-                                    deleteFile(file.path)
-                                })
+                    ChunkUploading.PushFile(chunkId, chunkNumber, filebuffer).then(r => {
+                        deleteFile(file.path)
+                        if(ChunkUploading.GetFileCount(chunkId) === amountOfChunks){
+                            let processedFilePath = ChunkUploading.CombineFiles(chunkId, originalFileName)
+                            let f = {
+                                path: processedFilePath,
+                                originalname: originalFileName
                             }
-                            else if(worldMeta !== undefined && r.UploadType === FileUploading.UploadType.World){
-                                Worlds.handleFileUpload(userid, tokenContent, r.FileId, worldMeta).then(verifiedWorldMeta => {
-                                    if(verifiedWorldMeta !== undefined){
-                                        Users.addWorld(userid, verifiedWorldMeta).then(uwar => {
-                                            if(uwar){
-                                                res.end(APIMessage.craftAPIMessage(true, "Uploaded World!", {
-                                                    UploadData: r,
-                                                    WorldId: verifiedWorldMeta.Id
-                                                }))
-                                                deleteFile(file.path)
-                                            }
-                                            else{
-                                                res.end(APIMessage.craftAPIMessage(false, "Failed to upload World!"))
-                                                FileUploading.DeleteFile(userid, r.FileId).catch(() => {})
-                                                Worlds.deleteWorld(verifiedWorldMeta.Id)
-                                                deleteFile(file.path)
-                                            }
-                                        }).catch(err => {
-                                            Logger.Error("Failed to upload world for reason " + err)
-                                            res.end(APIMessage.craftAPIMessage(false, "Failed to upload world!"))
-                                            FileUploading.DeleteFile(userid, r.FileId).catch(() => {})
-                                            deleteFile(file.path)
-                                        })
-                                    }
-                                    else{
-                                        res.end(APIMessage.craftAPIMessage(false, "Failed to upload World!"))
-                                        FileUploading.DeleteFile(userid, r.FileId).catch(() => {})
-                                        deleteFile(file.path)
-                                    }
-                                }).catch(err => {
-                                    Logger.Error("Failed to upload world for reason " + err)
-                                    res.end(APIMessage.craftAPIMessage(false, "Failed to upload world!"))
-                                    FileUploading.DeleteFile(userid, r.FileId).catch(() => {})
-                                    deleteFile(file.path)
-                                })
-                            }
-                            else {
-                                res.end(APIMessage.craftAPIMessage(true, "Uploaded File!", {
-                                    UploadData: r
-                                }))
-                                deleteFile(file.path)
-                            }
+                            onUploadFile(res, f, userid, tokenContent, avatarMeta, worldMeta).then(() =>{
+                                ChunkUploading.DisposeId(chunkId)
+                            }).catch(err => {
+                                ChunkUploading.DisposeId(chunkId)
+                            })
                         }
-                        else {
-                            res.end(APIMessage.craftAPIMessage(false, "Failed to upload file!"))
-                            deleteFile(file.path)
+                        else{
+                            res.end(APIMessage.craftAPIMessage(true, "Uploaded Chunk!", {
+                                chunkNumber: chunkNumber,
+                                chunkId: chunkId
+                            }))
                         }
                     }).catch(err => {
-                        Logger.Error("Failed to upload file for reason " + err)
-                        res.end(APIMessage.craftAPIMessage(false, "Failed to upload file!"))
+                        Logger.Error("Failed to upload chunk for reason " + err)
+                        ChunkUploading.DisposeId(chunkId)
+                        res.end(APIMessage.craftAPIMessage(false, "Failed to upload chunk!"))
                         deleteFile(file.path)
                     })
                 }
-                else {
+                else{
                     res.end(APIMessage.craftAPIMessage(false, "Failed to authenticate user!"))
+                    if(ChunkUploading.DoesIdExist(chunkId))
+                        ChunkUploading.DisposeId(chunkId)
                     deleteFile(file.path)
                 }
             }).catch(err => {
                 Logger.Error("Failed to upload file for reason " + err)
                 res.end(APIMessage.craftAPIMessage(false, "Failed to upload file!"))
+                if(ChunkUploading.DoesIdExist(chunkId))
+                    ChunkUploading.DisposeId(chunkId)
                 deleteFile(file.path)
             })
         }
