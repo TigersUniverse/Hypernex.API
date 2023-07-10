@@ -245,7 +245,7 @@ function handleMessage(socketObject, parsedMessage){
             case "removemoderator":{
                 // Required Args: {args.instanceId, args.userId}
                 let instance = getInstanceById(socketObject.Meta.gameServerId, parsedMessage.args.instanceId)
-                if(instance !== undefined){
+                if(instance !== undefined && parsedMessage.args.userId !== instance.InstanceCreatorId){
                     instance.Moderators = ArrayTools.filterArray(instance.Moderators, parsedMessage.args.userId)
                     socketObject.Socket.send(SocketMessage.craftSocketMessage("removedmoderator", {
                         instanceId: parsedMessage.args.instanceId,
@@ -267,7 +267,7 @@ function handleMessage(socketObject, parsedMessage){
                 Users.doesUserExist(parsedMessage.args.userId).then(userExists => {
                     if(userExists){
                         let instance = getInstanceById(socketObject.Meta.gameServerId, parsedMessage.args.instanceId)
-                        if(instance !== undefined && ArrayTools.find(instance.BannedUsers, parsedMessage.args.userId) === undefined){
+                        if(instance !== undefined && ArrayTools.find(instance.BannedUsers, parsedMessage.args.userId) === undefined && parsedMessage.args.userId !== instance.InstanceCreatorId){
                             instance.BannedUsers.push(parsedMessage.args.userId)
                             socketObject.Socket.send(SocketMessage.craftSocketMessage("banneduser", {
                                 instanceId: parsedMessage.args.instanceId,
@@ -313,9 +313,12 @@ function handleMessage(socketObject, parsedMessage){
                             gameServerId: socketObject.Meta.gameServerId,
                             instanceId: instance.InstanceId,
                             InstanceProtocol: instance.InstanceProtocol,
+                            InstancePublicity: instance.InstancePublicity,
                             Uri: instance.Uri,
                             worldId: instance.WorldId,
                             tempUserToken: tempUserToken,
+                            Moderators: instance.Moderators,
+                            BannedUsers: instance.BannedUsers
                         }))
                         instance.Readied = true
                     }
@@ -351,11 +354,14 @@ function handleMessage(socketObject, parsedMessage){
                             socketObject.Socket.send(SocketMessage.craftSocketMessage("joinedinstance", {
                                 Uri: instance.Uri,
                                 InstanceProtocol: instance.InstanceProtocol,
+                                InstancePublicity: instance.InstancePublicity,
                                 gameServerId: instance.GameServerId,
                                 instanceId: instance.InstanceId,
                                 tempUserToken: tempUserToken,
                                 worldId: instance.WorldId,
-                                instanceCreatorId: instance.InstanceCreatorId
+                                instanceCreatorId: instance.InstanceCreatorId,
+                                Moderators: instance.Moderators,
+                                BannedUsers: instance.BannedUsers
                             }))
                         }
                         else{
@@ -395,7 +401,7 @@ function handleMessage(socketObject, parsedMessage){
                 let instanceMeta = getInstanceById(gameServerId, toInstanceId)
                 if(targetSocket !== undefined && gameServerSocket !== undefined && instanceMeta !== undefined){
                     if(ArrayTools.find(instanceMeta.ConnectedUsers, parsedMessage.userId) !== undefined){
-                        canUserInvite(instanceMeta, targetUserId).then(isWelcome => {
+                        canUserInvite(instanceMeta, targetUserId, socketObject.Meta.userId).then(isWelcome => {
                             if(isWelcome){
                                 instanceMeta.InvitedUsers.push(targetUserId)
                                 targetSocket.Socket.send(SocketMessage.craftSocketMessage("gotinvite", {
@@ -585,6 +591,15 @@ function getAllInstances(gameServerId){
 }
 
 function sendInstanceUpdate(gameServerSocketObject, instance){
+    for (let i = 0; i < instance.ConnectedUsers.length; i++){
+        let connectedUserId = instance.ConnectedUsers[i]
+        let userMeta = getSocketObjectByUserId(connectedUserId)
+        if(userMeta !== undefined){
+            userMeta.Socket.send(SocketMessage.craftSocketMessage("updatedinstance", {
+                instanceMeta: instance
+            }))
+        }
+    }
     gameServerSocketObject.Socket.send(SocketMessage.craftSocketMessage("updatedinstance", {
         instanceMeta: instance
     }))
@@ -632,10 +647,9 @@ function canUserInvite(instance, userIdBeingInvited, userIdInviting){
                 }).catch(err => reject(err))
                 break
             case exports.InstancePublicity.Acquaintances:
-                Users.getUserDataFromUserId(instance.InstanceCreatorId).then(instanceOwnerUser => {
-                    if(instanceOwnerUser !== undefined){
-                        exec(ArrayTools.find(instanceOwnerUser.Friends, userIdInviting) !== undefined)
-                    }
+                Users.getUserDataFromUserId(userIdInviting).then(invitingUser => {
+                    if(invitingUser !== undefined)
+                        exec(ArrayTools.find(invitingUser.Friends, userIdBeingInvited) !== undefined)
                     else
                         exec(false)
                 }).catch(err => reject(err))
@@ -649,8 +663,12 @@ function canUserInvite(instance, userIdBeingInvited, userIdInviting){
 
 function isUserWelcomeInInstance(instance, userId){
     return new Promise((exec, reject) => {
-        if(instance.InstanceCreatorId === userId){
+        if(instance.InstanceCreatorId === userId || ArrayTools.find(instance.Moderators, userId)){
             exec(true)
+            return
+        }
+        if(ArrayTools.find(instance.BannedUsers, userId) !== undefined){
+            exec(false)
             return
         }
         switch(instance.InstancePublicity){
@@ -677,24 +695,25 @@ function isUserWelcomeInInstance(instance, userId){
                 }).catch(err => reject(err))
                 break
             case exports.InstancePublicity.Acquaintances:
-                let c = true
-                for (let i = 0; i < instance.ConnectedUsers.length; i++){
-                    if(c){
-                        let instanceUserId = instance.ConnectedUsers[i]
-                        Users.getUserDataFromUserId(instanceUserId).then(userData => {
-                            if(userData !== undefined){
-                                if(ArrayTools.find(userData.Friends, userId) !== undefined){
-                                    exec(true)
-                                    c = false
-                                }
-                                else
-                                    exec(false)
-                            }
-                            else
-                                exec(false)
-                        }).catch(err => reject(err))
-                    }
+                let connectedUsersLength = instance.ConnectedUsers.length
+                let loopTimes = 0
+                let found = false
+                for (let i = 0; i < connectedUsersLength; i++){
+                    let connectedUserId = instance.ConnectedUsers[i]
+                    Users.getUserDataFromUserId(connectedUserId).then(connectedUser => {
+                        if(connectedUser !== undefined){
+                            if(ArrayTools.find(connectedUser.Friends, userId) !== undefined)
+                                found = true
+                        }
+                        loopTimes++
+                    }).catch(() => loopTimes++)
                 }
+                let aInterval = setInterval(() => {
+                    if(loopTimes < connectedUsersLength)
+                        return
+                    exec(found)
+                    clearInterval(aInterval)
+                }, 10)
                 break
             case exports.InstancePublicity.Anyone:
                 exec(true)
@@ -752,38 +771,11 @@ exports.GetSafeInstances = function (user) {
                 ConnectedUsers: instance.ConnectedUsers,
                 WorldId: instance.WorldId
             }
-            if(ArrayTools.find(instance.BannedUsers, user.Id) === undefined){
-                if(instance.InstancePublicity === exports.InstancePublicity.Anyone){
+            isUserWelcomeInInstance(instance, user.Id).then(b => {
+                if(b)
                     is.push(safeinstance)
-                    instanceLoops++
-                }
-                else if(instance.InstancePublicity === exports.InstancePublicity.Acquaintances){
-                    let added = false
-                    for(let u = 0; u < instance.ConnectedUsers.length; u++){
-                        if(!added){
-                            Users.getUserDataFromUserId(instance.ConnectedUsers[u]).then(pu => {
-                                if(pu !== undefined){
-                                    if(!added && ArrayTools.find(pu.Friends, user.Id) !== undefined){
-                                        added = true
-                                        is.push(safeinstance)
-                                    }
-                                }
-                                instanceLoops++
-                            }).catch(() => instanceLoops++)
-                        }
-                    }
-                }
-                else if(instance.InstancePublicity === exports.InstancePublicity.Friends){
-                    if(ArrayTools.find(user.Friends, instance.InstanceCreatorId))
-                        is.push(safeinstance)
-                    instanceLoops++
-                }
-                else{
-                    if(ArrayTools.find(instance.InvitedUsers, user.Id))
-                        is.push(safeinstance)
-                    instanceLoops++
-                }
-            }
+                instanceLoops++
+            }).catch(() => instanceLoops++)
         }
         // TODO: This could *probably* be better
         let interval = setInterval(() => {
