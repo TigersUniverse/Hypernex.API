@@ -147,7 +147,7 @@ function hashPassword(password){
 }
 
 const ACCEPTABLE_CHARACTERS_IN_USERNAME = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p",
-                                            "q", "r", "s", "t", "u", "v", "w", "x", "y", "x", "A", "B", "C", "D", "E", "F",
+                                            "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "A", "B", "C", "D", "E", "F",
                                             "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V",
                                             "W", "X", "Y", "Z", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
 
@@ -177,7 +177,7 @@ function isValidPassword(password){
         if(f !== undefined)
             caps++
     }
-    if(caps < 2)
+    if(caps < 1)
         return false
     let lower = 0
     for(let i = 0; i < password.length; i++){
@@ -185,7 +185,7 @@ function isValidPassword(password){
         if(f !== undefined)
             lower++
     }
-    if(lower < 2)
+    if(lower < 1)
         return false
     let nums = 0
     for(let i = 0; i < password.length; i++){
@@ -193,7 +193,7 @@ function isValidPassword(password){
         if(f !== undefined)
             nums++
     }
-    if(nums < 2)
+    if(nums < 1)
         return false
     let special = 0
     for(let i = 0; i < password.length; i++){
@@ -203,7 +203,7 @@ function isValidPassword(password){
         if(f === undefined && ff === undefined && fff === undefined)
             special++
     }
-    if(special < 2)
+    if(special < 1)
         return false
     return true
 }
@@ -212,7 +212,7 @@ const PASSWORD_CAPS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L
                        "T", "U", "V", "W", "X", "Y", "Z"]
 
 const PASSWORD_LOWER = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p",
-                        "q", "r", "s", "t", "u", "v", "w", "x", "y", "x"]
+                        "q", "r", "s", "t", "u", "v", "w", "x", "y", "z"]
 
 const PASSWORD_NUM = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
 

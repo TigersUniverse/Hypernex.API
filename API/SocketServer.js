@@ -396,6 +396,7 @@ function handleMessage(socketObject, parsedMessage){
                 let targetUserId = parsedMessage.args.targetUserId
                 let gameServerId = parsedMessage.args.gameServerId
                 let toInstanceId = parsedMessage.args.toInstanceId
+                let assetToken = parsedMessage.args.assetToken
                 let targetSocket = getSocketObjectByUserId(targetUserId)
                 let gameServerSocket = getSocketObjectByGameServerId(gameServerId)
                 let instanceMeta = getInstanceById(gameServerId, toInstanceId)
@@ -408,7 +409,8 @@ function handleMessage(socketObject, parsedMessage){
                                     fromUserId: socketObject.Meta.userId,
                                     toGameServerId: gameServerId,
                                     toInstanceId: toInstanceId,
-                                    worldId: instanceMeta.WorldId
+                                    worldId: instanceMeta.WorldId,
+                                    assetToken: assetToken
                                 }))
                             }
                         }).catch(() => {})
@@ -791,7 +793,7 @@ exports.GetPublicInstancesOfWorld = function (worldId) {
     let instances = []
     for (let i = 0; i < Instances.length; i++){
         let instance = Instances[i]
-        if(instance.InstancePublicity === exports.InstancePublicity.Anyone){
+        if(instance.InstancePublicity === exports.InstancePublicity.Anyone && instance.WorldId === worldId){
             let safeinstance = {
                 GameServerId: instance.GameServerId,
                 InstanceId: instance.InstanceId,

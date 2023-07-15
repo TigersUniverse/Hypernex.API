@@ -110,7 +110,7 @@ function verifyTokens(tokens){
 // Do not expose!
 exports.addWorldToken = function (userid, worldId) {
     return new Promise((exec, reject) => {
-        exports.getWorldMetaById(userid, worldId).then(worldMeta => {
+        exports.getWorldMetaById(worldId).then(worldMeta => {
             if(worldMeta !== undefined){
                 if(worldMeta.OwnerId === userid){
                     if(worldMeta.Tokens === undefined)
@@ -287,8 +287,31 @@ exports.handleFileUpload = function (userid, tokenContent, fileid, clientWorldMe
                                             if(build.BuildPlatform === worldMeta.BuildPlatform)
                                                 worldBuild = build
                                         }
-                                        if(worldBuild === undefined)
-                                            exec(undefined)
+                                        if(worldBuild === undefined){
+                                            // Different BuildPlatform
+                                            let newbuilds = ArrayTools.customFilterArray(wm.Builds, x => {
+                                                if(x.BuildPlatform === worldMeta.BuildPlatform){
+                                                    FileUploading.DeleteFile(userid, x.FileId).catch(() => {})
+                                                    return false
+                                                }
+                                                return true
+                                            })
+                                            newbuilds.push({
+                                                FileId: fileid,
+                                                BuildPlatform: worldMeta.BuildPlatform,
+                                                ServerScripts: worldMeta.ServerScripts
+                                            })
+                                            delete worldMeta.BuildPlatform
+                                            delete wm.ServerScripts
+                                            wm.Builds = newbuilds
+                                            wm = clone(worldMeta, wm)
+                                            setWorldMeta(wm).then(r => {
+                                                if(r)
+                                                    exec(wm)
+                                                else
+                                                    exec(undefined)
+                                            }).catch(err => reject(err))
+                                        }
                                         else
                                             deleteAllOldWorldFiles(wm, userid, false, worldBuild.BuildPlatform).then(dssr => {
                                                 if(dssr){

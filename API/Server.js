@@ -1365,7 +1365,7 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
                 }
                 else
                     res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
-            })
+            }).catch(() => res.end(APIMessage.craftAPIMessage(false, "Failed to verify Token!")))
         }
         else
             res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
