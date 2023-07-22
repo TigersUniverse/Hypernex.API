@@ -28,7 +28,7 @@ exports.Init = function (serverConfig, usersModule, worldsModule, ssl) {
         server = http.createServer(app)
     }
     const wss = new WebSocket.Server({server})
-    wss.on('connection', function(ws){onSocketConnect(ws)})
+    wss.on('connection', function(ws, req){onSocketConnect(ws, req)})
     server.listen(ServerConfig.LoadedConfig.SocketPort, () => {
         Logger.Log("Started WebSocket Server on Port " + ServerConfig.LoadedConfig.SocketPort)
     })
@@ -127,7 +127,7 @@ exports.AreGameServerCredentialsValid = function (gameServerId, serverTokenConte
     return false
 }
 
-function onSocketConnect(socket){
+function onSocketConnect(socket, req){
     let isAlive = true
     let id = ID.newTokenPassword(25)
     while(getSocketObjectById(id) !== undefined)
@@ -190,6 +190,29 @@ function onSocketConnect(socket){
                         socketObject.Meta.gameServerId = gameServerId
                         socketObject.Meta.serverTokenContent = parsedMessage.serverTokenContent
                         socketObject.Meta.isVerified = true
+                        socketObject.Meta.IP = req.headers['x-forwarded-for'] || req.socket.remoteAddress
+                        console.log("https://api.seeip.org/geoip/" + socketObject.Meta.IP)
+                        https.get("https://api.seeip.org/geoip/" + socketObject.Meta.IP, res => {
+                            let body = ""
+                            res.on('data', chunk => body += chunk)
+                            res.on('end', () => {
+                                try{
+                                    let j = JSON.parse(body)
+                                    socketObject.Meta.Region = {
+                                        ContinentCode: j.continent_code,
+                                        City: j.city,
+                                        State: j.region,
+                                        Country: j.country
+                                    }
+                                }catch(_){
+                                    socketObject.Meta.Region = {
+                                        ContinentCode: undefined,
+                                        City: undefined,
+                                        Country: undefined
+                                    }
+                                }
+                            })
+                        })
                         socketObject.Socket.send(SocketMessage.craftSocketMessage("sendauth", {
                             gameServerId: socketObject.Meta.gameServerId,
                             gameServerToken: socketObject.Meta.serverTokenContent
@@ -445,7 +468,7 @@ function handleMessage(socketObject, parsedMessage){
                 break
             }
             case "requestnewinstance":{
-                createRequestedInstance(parsedMessage.args.worldId, socketObject, parsedMessage.args.instancePublicity, parsedMessage.args.instanceProtocol).then(r => {
+                createRequestedInstance(parsedMessage.args.worldId, socketObject, parsedMessage.args.instancePublicity, parsedMessage.args.instanceProtocol, parsedMessage.args.gameServerId).then(r => {
                     if(r)
                         socketObject.Socket.send(SocketMessage.craftSocketMessage("createdtemporaryinstance", {}))
                     else
@@ -478,7 +501,7 @@ function getInstanceById(gameServerId, id){
     return undefined
 }
 
-function createRequestedInstance(worldId, userSocketObject, instancePublicity, instanceProtocol){
+function createRequestedInstance(worldId, userSocketObject, instancePublicity, instanceProtocol, optionalGameServerId){
     return new Promise((exec, reject) => {
         Worlds.getWorldMetaById(worldId).then(worldMeta => {
             if(worldMeta){
@@ -493,10 +516,22 @@ function createRequestedInstance(worldId, userSocketObject, instancePublicity, i
                     while(getRequestedInstanceFromId(requestedMeta.TemporaryId) !== undefined)
                         requestedMeta.TemporaryId = ID.newSafeURLTokenPassword(25)
                     RequestedInstances.push(requestedMeta)
-                    broadcastToGameServers(SocketMessage.craftSocketMessage("requestedinstancecreated", {
-                        temporaryId: requestedMeta.TemporaryId,
-                        instanceProtocol: requestedMeta.InstanceProtocol
-                    }))
+                    let sent = optionalGameServerId !== undefined
+                    if(sent){
+                        let gameServerSocket = getSocketObjectByGameServerId(optionalGameServerId)
+                        if(gameServerSocket === undefined)
+                            sent = false
+                        else
+                            gameServerSocket.Socket.send(SocketMessage.craftSocketMessage("requestedinstancecreated", {
+                                temporaryId: requestedMeta.TemporaryId,
+                                instanceProtocol: requestedMeta.InstanceProtocol
+                            }))
+                    }
+                    if(!sent)
+                        broadcastToGameServers(SocketMessage.craftSocketMessage("requestedinstancecreated", {
+                            temporaryId: requestedMeta.TemporaryId,
+                            instanceProtocol: requestedMeta.InstanceProtocol
+                        }))
                     setTimeout(() => {
                         if(getRequestedInstanceFromId(requestedMeta.Id) !== undefined){
                             // give up
@@ -807,6 +842,19 @@ exports.GetPublicInstancesOfWorld = function (worldId) {
         }
     }
     return instances
+}
+
+exports.GetALlGameServers = function () {
+    let gameServers = []
+    for (let i = 0; i < Sockets.length; i++){
+        let socket = Sockets[i]
+        if(socket.Meta.gameServerId !== undefined)
+            gameServers.push({
+                GameServerId: socket.Meta.gameServerId,
+                Region: socket.Meta.Region
+            })
+    }
+    return gameServers
 }
 
 exports.InstancePublicity = {

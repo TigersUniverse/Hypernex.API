@@ -1412,6 +1412,13 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
         else
             res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
     })
+
+    app.get(getAPIEndpoint() + "gameServers", function (req, res){
+        let gameServers = SocketServer.GetALlGameServers()
+        res.end(APIMessage.craftAPIMessage(true, "Got GameServers!", {
+            GameServers: gameServers
+        }))
+    })
 }
 
 exports.createServer = function (port, ssl){
