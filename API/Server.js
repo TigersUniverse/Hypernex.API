@@ -8,6 +8,7 @@ const ArrayTools = require("./../Tools/ArrayTools.js")
 const ChunkUploading = require("./../Tools/ChunkUploading.js")
 const Logger = require("./../Logging/Logger.js")
 const APIMessage = require("./APIMessage.js")
+const BuildDelivery = require("./BuildDelivery.js")
 
 const multer = require("multer")
 const fs = require("fs");
@@ -61,10 +62,28 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
         }))
     })
 
+    app.get(getAPIEndpoint() + "allowAnyGameServer", function (req, res) {
+        res.end(APIMessage.craftAPIMessage(true, "Got Information", {
+            allowAnyGameServer: serverConfig.LoadedConfig.AllowAnyGameServer
+        }))
+    })
+
     app.get(getAPIEndpoint() + "getSocketInfo", function (req, res){
         res.end(APIMessage.craftAPIMessage(true, "Got Information", {
             IsWSS: ServerConfig.LoadedConfig.UseHTTPS,
             Port: ServerConfig.LoadedConfig.SocketPort
+        }))
+    })
+
+    app.get(getAPIEndpoint() + "authForBuilds", function (req, res) {
+        res.end(APIMessage.craftAPIMessage(true, "Got Information", {
+            authForBuilds: serverConfig.LoadedConfig.RequireTokenToDownloadBuilds
+        }))
+    })
+
+    app.get(getAPIEndpoint() + "unityVersion", function (req, res) {
+        res.end(APIMessage.craftAPIMessage(true, "Got Information", {
+            UnityVersion: serverConfig.LoadedConfig.UnityVersion
         }))
     })
 
@@ -1419,6 +1438,26 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
             GameServers: gameServers
         }))
     })
+
+    app.get(getAPIEndpoint() + "randomImage", function (req, res) {
+        if(!fs.existsSync("images")) {
+            fs.mkdirSync("images")
+            res.end(APIMessage.craftAPIMessage(false, "Failed to get Image!"))
+            return
+        }
+        let files = fs.readdirSync("images")
+        if(files.length <= 0){
+            res.end(APIMessage.craftAPIMessage(false, "Failed to get Image!"))
+            return
+        }
+        let random = Math.floor(Math.random() * files.length)
+        let fileName = files[random]
+        let file = path.join("images", fileName)
+        res.attachment(fileName)
+        res.send(fs.readFileSync(file))
+    })
+
+    BuildDelivery.init(serverConfig, app, getAPIEndpoint(), usersModule, isUserBodyValid)
 }
 
 exports.createServer = function (port, ssl){
