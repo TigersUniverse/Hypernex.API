@@ -84,48 +84,55 @@ function prepareBuild(name, versions){
                 VersionString: versionString
             })
     }
+    let preRegisteredVersions = []
+    if(RegisteredBuilds[name] !== undefined)
+        for(let i = 0; i < RegisteredBuilds[name].length; i++)
+            preRegisteredVersions.push(RegisteredBuilds[name])
+    RegisteredBuilds[name] = []
     for (let i = 0; i < compatibleVersions.length; i++){
         let versionObject = compatibleVersions[i]
-        if(isBuildRegistered(name, versionObject.VersionString)) continue
-        app.post(apiEndpoint + "getBuild/" + name + "/" + versionObject.VersionString, function (req, res) {
-            let buildArtifact = req.body.buildArtifact
-            if(buildArtifact === undefined)
-                buildArtifact = 0
-            let files = fs.readdirSync(versionObject.Directory)
-            if(files[buildArtifact] === undefined)
-                buildArtifact = 0
-            if(files[buildArtifact] === undefined){
-                res.end(APIMessage.craftAPIMessage(false, "Failed to deliver build!"))
-                return
-            }
-            let file = path.join(BuildsDir, name, versionObject.VersionString, files[buildArtifact])
-            if(file === undefined){
-                Logger.Error("No build for " + name + " on " + versionObject.VersionString)
-                res.end(APIMessage.craftAPIMessage(false, "Failed to deliver build!"))
-            }
-            let userid = req.body.userid
-            let tokenContent = req.body.tokenContent
-            if(ServerConfig.LoadedConfig.RequireTokenToDownloadBuilds){
-                if(isUserBodyValid(userid, 'string') && isUserBodyValid(tokenContent, 'string')){
-                    Users.isUserIdTokenValid(userid, tokenContent).then(valid => {
-                        if(valid)
-                            sendFile(res, path.basename(file), fs.readFileSync(file))
-                        else
-                            res.end(APIMessage.craftAPIMessage(false, "Invalid Token!"))
-                    }).catch(err => {
-                        Logger.Error("Failed to Deliver Build for reason: " + err)
-                        res.end(APIMessage.craftAPIMessage(false, "Failed to deliver build!"))
-                    })
+        let wasBuildRegistered = ArrayTools.find(preRegisteredVersions, versionObject.VersionString) === undefined
+        if(wasBuildRegistered)
+            app.post(apiEndpoint + "getBuild/" + name + "/" + versionObject.VersionString, function (req, res) {
+                let buildArtifact = req.body.buildArtifact
+                if(buildArtifact === undefined)
+                    buildArtifact = 0
+                let files = fs.readdirSync(versionObject.Directory)
+                if(files[buildArtifact] === undefined)
+                    buildArtifact = 0
+                if(files[buildArtifact] === undefined){
+                    res.end(APIMessage.craftAPIMessage(false, "Failed to deliver build!"))
+                    return
+                }
+                let file = path.join(BuildsDir, name, versionObject.VersionString, files[buildArtifact])
+                if(file === undefined){
+                    Logger.Error("No build for " + name + " on " + versionObject.VersionString)
+                    res.end(APIMessage.craftAPIMessage(false, "Failed to deliver build!"))
+                }
+                let userid = req.body.userid
+                let tokenContent = req.body.tokenContent
+                if(ServerConfig.LoadedConfig.RequireTokenToDownloadBuilds){
+                    if(isUserBodyValid(userid, 'string') && isUserBodyValid(tokenContent, 'string')){
+                        Users.isUserIdTokenValid(userid, tokenContent).then(valid => {
+                            if(valid)
+                                sendFile(res, path.basename(file), fs.readFileSync(file))
+                            else
+                                res.end(APIMessage.craftAPIMessage(false, "Invalid Token!"))
+                        }).catch(err => {
+                            Logger.Error("Failed to Deliver Build for reason: " + err)
+                            res.end(APIMessage.craftAPIMessage(false, "Failed to deliver build!"))
+                        })
+                    }
+                    else
+                        res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
                 }
                 else
-                    res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
-            }
-            else
-                sendFile(res, path.basename(file), fs.readFileSync(file))
-        })
+                    sendFile(res, path.basename(file), fs.readFileSync(file))
+            })
         if(RegisteredBuilds[name] === undefined)
             RegisteredBuilds[name] = []
         RegisteredBuilds[name].push(versionObject.VersionString)
-        Logger.Log("Registered Build " + versionObject.VersionString + " for " + name)
+        if(!wasBuildRegistered)
+            Logger.Log("Registered Build " + versionObject.VersionString + " for " + name)
     }
 }
