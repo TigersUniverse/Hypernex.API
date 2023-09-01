@@ -202,13 +202,18 @@ function onSocketConnect(socket, req){
                                         ContinentCode: j.continent_code,
                                         City: j.city,
                                         State: j.region,
-                                        Country: j.country
+                                        Country: j.country,
+                                        Latitude: j.latitude,
+                                        Longitude: j.longitude
                                     }
                                 }catch(_){
                                     socketObject.Meta.Region = {
                                         ContinentCode: undefined,
                                         City: undefined,
-                                        Country: undefined
+                                        State: undefined,
+                                        Country: undefined,
+                                        Latitude: undefined,
+                                        Longitude: undefined
                                     }
                                 }
                             })
