@@ -191,7 +191,6 @@ function onSocketConnect(socket, req){
                         socketObject.Meta.serverTokenContent = parsedMessage.serverTokenContent
                         socketObject.Meta.isVerified = true
                         socketObject.Meta.IP = req.headers['x-forwarded-for'] || req.socket.remoteAddress
-                        console.log("https://api.seeip.org/geoip/" + socketObject.Meta.IP)
                         https.get("https://api.seeip.org/geoip/" + socketObject.Meta.IP, res => {
                             let body = ""
                             res.on('data', chunk => body += chunk)
