@@ -3,6 +3,7 @@ const http = require('http')
 const https = require('https')
 const bodyParser = require("body-parser");
 const path = require("path")
+const cors = require("cors")
 
 const ArrayTools = require("./../Tools/ArrayTools.js")
 const ChunkUploading = require("./../Tools/ChunkUploading.js")
@@ -53,6 +54,7 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
     }))
     app.use(bodyParser.urlencoded({extended: true}))
     app.use(bodyParser.json())
+    app.use(cors())
 
     // Server Information
 
