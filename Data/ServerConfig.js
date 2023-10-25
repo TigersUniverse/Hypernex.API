@@ -34,11 +34,6 @@ exports.LoadedConfig = {
     },
     SocketPort: 2096,
     WebRoot: "html/",
-    MailGun: {
-        Username: "",
-        Key: "",
-        MailGunURL: ""
-    },
     HTMLPaths: {
         EmailVerificationPath: "emailhtml/verifyEmail.html",
         ResetPasswordPath: "emailhtml/resetPassword.html"
