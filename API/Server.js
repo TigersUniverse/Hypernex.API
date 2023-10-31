@@ -811,7 +811,7 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
         let tokenContent = req.body.tokenContent
         let avatarMeta = req.body.avatarMeta
         let worldMeta = req.body.worldMeta
-        onUploadFile(res, file, userid, tokenContent, avatarMeta, worldMeta)
+        onUploadFile(res, file, userid, tokenContent, avatarMeta, worldMeta).then(r => {}).catch(err => {})
     })
 
     app.post(getAPIEndpoint() + "uploadPart", upload.single('file'), function (req, res) {
