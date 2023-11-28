@@ -8,6 +8,7 @@ const SearchDatabase = require("./Data/SearchDatabase.js")
 const Emailing = require("./Data/Emailing.js")
 const FileUploading = require("./Data/FileUploading.js")
 const APIServer = require("./API/Server.js")
+const Popularity = require("./Data/Popularity.js")
 const Users = require("./Game/Users.js")
 const SocketServer = require("./API/SocketServer.js")
 const Avatars = require("./Game/Avatars.js")
@@ -60,6 +61,8 @@ Database.connect(ServerConfig.LoadedConfig.DatabaseInfo.DatabaseNumber,
             let avatarsSearchCollection = sd.createCollection(mainSearchDatabase, "avatars")
             let worldsSearchCollection = sd.createCollection(mainSearchDatabase, "worlds")
             let uploadsSearchCollection = sd.createCollection(mainSearchDatabase, "uploads")
+            let worldPopularityCollections = sd.createCollection(mainSearchDatabase, "world_popularity")
+            let avatarPopularityCollections = sd.createCollection(mainSearchDatabase, "avatar_popularity")
             // Init Modules
             let otp = OTP.init(ServerConfig)
             let u = Users.init(ServerConfig, d, otp, ut, sd, usersSearchCollection)
@@ -68,7 +71,8 @@ Database.connect(ServerConfig.LoadedConfig.DatabaseInfo.DatabaseNumber,
             Emailing.init(ServerConfig)
             FileUploading.init(ServerConfig, d, u, sd, uploadsSearchCollection).then(fu => {
                 a.SetFileUploadingModule(fu)
-                let w = Worlds.init(ServerConfig, u, d, ut, fu, sd, worldsSearchCollection)
+                let p = Popularity.Init(sd, fu, avatarPopularityCollections, worldPopularityCollections)
+                let w = Worlds.init(ServerConfig, u, d, ut, fu, sd, worldsSearchCollection, p)
                 let ss
                 if(ServerConfig.LoadedConfig.UseHTTPS)
                     ss = SocketServer.Init(ServerConfig, u, w, {
@@ -78,7 +82,7 @@ Database.connect(ServerConfig.LoadedConfig.DatabaseInfo.DatabaseNumber,
                 else
                     ss = SocketServer.Init(ServerConfig, u, w)
                 // API comes last
-                APIServer.initapp(u, ss, ServerConfig, fu, a, w)
+                APIServer.initapp(u, ss, ServerConfig, fu, a, w, p)
                 let httpServer = APIServer.createServer(80)
                 let httpsServer
                 if(ServerConfig.LoadedConfig.UseHTTPS) {

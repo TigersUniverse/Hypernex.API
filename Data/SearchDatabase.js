@@ -49,3 +49,9 @@ exports.find = function (collection, query = {}) {
         collection.find(query).toArray().then(items => exec(items)).catch(err => reject(err))
     })
 }
+
+exports.sortfind = function (collection, query = {}, sort = {}) {
+    return new Promise( (exec, reject) => {
+        collection.find(query).sort(sort).toArray().then(items => exec(items)).catch(err => reject(err))
+    })
+}

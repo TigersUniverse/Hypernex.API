@@ -23,6 +23,7 @@ let SocketServer
 let FileUploading
 let Avatars
 let Worlds
+let Popularity
 
 const API_VERSION = "v1"
 
@@ -40,13 +41,15 @@ function isUserBodyValid(property, targetType){
     return v
 }
 
-exports.initapp = function (usersModule, socketServerModule, serverConfig, fileUploadModule, avatarsModule, worldsModule){
+exports.initapp = function (usersModule, socketServerModule, serverConfig, fileUploadModule, avatarsModule, worldsModule, popularityModule){
     Users = usersModule
     SocketServer = socketServerModule
     ServerConfig = serverConfig
     FileUploading = fileUploadModule
     Avatars = avatarsModule
     Worlds = worldsModule
+    Popularity = popularityModule
+
 
     upload = multer({ dest: "uploads/", limits: { fileSize: ServerConfig.LoadedConfig.MaxFileSize * 1000000 } })
     app.use(express.static(path.resolve(serverConfig.LoadedConfig.WebRoot), {
@@ -874,7 +877,8 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
         }
         else {
             res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
-            deleteFile(file.path)
+            if(file !== undefined)
+                deleteFile(file.path)
         }
     })
 
@@ -980,10 +984,14 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
             res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
     })
 
-    app.get(getAPIEndpoint() + "search/user/:username", function (req, res) {
+    app.get(getAPIEndpoint() + "search/user/:username/:itemsPerPage/:pageNumber", function (req, res) {
         let username = req.params.username
+        let itemsPerPage = parseInt(req.params.itemsPerPage)
+        if(itemsPerPage > 50)
+            itemsPerPage = 50
+        let pageNumber = parseInt(req.params.pageNumber)
         if(isUserBodyValid(username, "string")){
-            Users.safeSearchUsername(username).then(arr => {
+            Users.safeSearchUsername(username, itemsPerPage, pageNumber).then(arr => {
                 res.end(APIMessage.craftAPIMessage(true, "Found Candidates!", {
                     Candidates: arr
                 }))
@@ -1110,6 +1118,12 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
                                     if(avatarMeta.Publicity === Avatars.Publicity.Anyone){
                                         res.attachment(fileData.FileMeta.FileName)
                                         res.send(fileData.FileData.Body)
+                                        Popularity.GetOrCreatePopularity(avatarMeta.Id).then(popularityObject => {
+                                            if(popularityObject){
+                                                Popularity.AddUsage(popularityObject)
+                                                Popularity.UpdateDocument(popularityObject).then(_ => {}).catch(_ => {})
+                                            }
+                                        }).catch(_ => {})
                                     }
                                     else
                                         res.end(APIMessage.craftAPIMessage(false, "Failed to Authenticate FileToken"))
@@ -1128,6 +1142,12 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
                                     if(worldMeta.Publicity === Worlds.Publicity.Anyone){
                                         res.attachment(fileData.FileMeta.FileName)
                                         res.send(fileData.FileData.Body)
+                                        Popularity.GetOrCreatePopularity(worldMeta.Id).then(popularityObject => {
+                                            if(popularityObject){
+                                                Popularity.AddUsage(popularityObject)
+                                                Popularity.UpdateDocument(popularityObject).then(_ => {}).catch(_ => {})
+                                            }
+                                        }).catch(_ => {})
                                     }
                                     else
                                         res.end(APIMessage.craftAPIMessage(false, "Missing FileToken"))
@@ -1439,6 +1459,72 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
         res.end(APIMessage.craftAPIMessage(true, "Got GameServers!", {
             GameServers: gameServers
         }))
+    })
+
+    app.get(getAPIEndpoint() + "popularity/world/:popularityType/:itemsPerPage/:page", function (req, res) {
+        try{
+            let popularityType = req.params.popularityType
+            if(!isUserBodyValid(popularityType)){
+                res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+                return
+            }
+            popularityType = Popularity.VerifyPopularityType(Number(popularityType))
+            let page = req.params.page
+            if(page === undefined || page === null)
+                page = 0
+            page = Number(page)
+            let itemsPerPage = req.params.itemsPerPage
+            if(itemsPerPage === undefined || itemsPerPage === null)
+                itemsPerPage = 50
+            itemsPerPage = Number(itemsPerPage)
+            Popularity.GetPopularity(FileUploading.UploadType.World, popularityType, page, itemsPerPage).then(r => {
+                if(r !== undefined){
+                    res.end(APIMessage.craftAPIMessage(true, "Got Popularity!", {
+                        Popularity: r
+                    }))
+                }
+                else{
+                    res.end(APIMessage.craftAPIMessage(false, "Failed to get popularity!"))
+                }
+            }).catch(e => {
+                res.end(APIMessage.craftAPIMessage(false, "Failed to get popularity!"))
+            })
+        } catch(_){
+            res.end(APIMessage.craftAPIMessage(false, "Failed to get popularity!"))
+        }
+    })
+
+    app.get(getAPIEndpoint() + "popularity/avatar/:popularityType/:itemsPerPage/:page", function (req, res) {
+        try{
+            let popularityType = req.params.popularityType
+            if(!isUserBodyValid(popularityType)){
+                res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+                return
+            }
+            popularityType = Popularity.VerifyPopularityType(Number(popularityType))
+            let page = req.params.page
+            if(page === undefined || page === null)
+                page = 0
+            page = Number(page)
+            let itemsPerPage = req.params.itemsPerPage
+            if(itemsPerPage === undefined || itemsPerPage === null)
+                itemsPerPage = 50
+            itemsPerPage = Number(itemsPerPage)
+            Popularity.GetPopularity(FileUploading.UploadType.Avatar, popularityType, page, itemsPerPage).then(r => {
+                if(r !== undefined){
+                    res.end(APIMessage.craftAPIMessage(true, "Got Popularity!", {
+                        Popularity: r
+                    }))
+                }
+                else{
+                    res.end(APIMessage.craftAPIMessage(false, "Failed to get popularity!"))
+                }
+            }).catch(() => {
+                res.end(APIMessage.craftAPIMessage(false, "Failed to get popularity!"))
+            })
+        } catch(_){
+            res.end(APIMessage.craftAPIMessage(false, "Failed to get popularity!"))
+        }
     })
 
     app.get(getAPIEndpoint() + "randomImage", function (req, res) {

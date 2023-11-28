@@ -17,10 +17,11 @@ let Database
 let URLTools
 let FileUploading
 let SearchDatabase
+let Popularity
 
 let WorldsCollection
 
-exports.init = function (ServerConfig, usersModule, databaseModule, urlToolsModule, fileUploadingModule, searchDatabaseModule, worldsCollection){
+exports.init = function (ServerConfig, usersModule, databaseModule, urlToolsModule, fileUploadingModule, searchDatabaseModule, worldsCollection, popularityModule){
     serverConfig = ServerConfig
     Users = usersModule
     Database = databaseModule
@@ -28,6 +29,7 @@ exports.init = function (ServerConfig, usersModule, databaseModule, urlToolsModu
     FileUploading = fileUploadingModule
     SearchDatabase = searchDatabaseModule
     WorldsCollection = worldsCollection
+    Popularity = popularityModule
     Logger.Log("Initialized Worlds!")
     return this
 }
@@ -305,6 +307,8 @@ exports.handleFileUpload = function (userid, tokenContent, fileid, clientWorldMe
                                             delete wm.ServerScripts
                                             wm.Builds = newbuilds
                                             wm = clone(worldMeta, wm)
+                                            if(wm.Publicity !== exports.Publicity.Anyone)
+                                                Popularity.DeleteWorldPublicity(worldMeta.Id).then().catch(() => {})
                                             setWorldMeta(wm).then(r => {
                                                 if(r)
                                                     exec(wm)
@@ -331,6 +335,8 @@ exports.handleFileUpload = function (userid, tokenContent, fileid, clientWorldMe
                                                     delete wm.ServerScripts
                                                     wm.Builds = newbuilds
                                                     wm = clone(worldMeta, wm)
+                                                    if(wm.Publicity !== exports.Publicity.Anyone)
+                                                        Popularity.DeleteWorldPublicity(worldMeta.Id).then().catch(() => {})
                                                     setWorldMeta(wm).then(r => {
                                                         if(r)
                                                             exec(wm)
@@ -406,37 +412,37 @@ exports.deleteWorld = function (worldid) {
             if(exists){
                 exports.getWorldMetaById(worldid).then(worldMeta => {
                     if(worldMeta !== undefined){
-                        deleteAllOldWorldFiles(worldMeta, worldMeta.OwnerId, true).then(dr => {
-                            if(dr){
+                        {
+                            deleteAllOldWorldFiles(worldMeta, worldMeta.OwnerId, true).then(dr => {
+                                if (dr) {
+                                    SearchDatabase.removeDocument(WorldsCollection, {"Id": worldid}).then(r => {
+                                        if (r) {
+                                            Database.delete(WORLDDATA_DATABASE_PREFIX + worldid).then(rr => {
+                                                if (rr)
+                                                    exec(true)
+                                                else
+                                                    exec(false)
+                                            }).catch(err => reject(err))
+                                        } else
+                                            exec(false)
+                                    }).catch(err => reject(err))
+                                } else
+                                    exec(false)
+                            }).catch(() => {
                                 SearchDatabase.removeDocument(WorldsCollection, {"Id": worldid}).then(r => {
-                                    if(r){
+                                    if (r) {
                                         Database.delete(WORLDDATA_DATABASE_PREFIX + worldid).then(rr => {
-                                            if(rr)
+                                            if (rr)
                                                 exec(true)
                                             else
                                                 exec(false)
                                         }).catch(err => reject(err))
-                                    }
-                                    else
+                                    } else
                                         exec(false)
                                 }).catch(err => reject(err))
-                            }
-                            else
-                                exec(false)
-                        }).catch(() => {
-                            SearchDatabase.removeDocument(WorldsCollection, {"Id": worldid}).then(r => {
-                                if(r){
-                                    Database.delete(WORLDDATA_DATABASE_PREFIX + worldid).then(rr => {
-                                        if(rr)
-                                            exec(true)
-                                        else
-                                            exec(false)
-                                    }).catch(err => reject(err))
-                                }
-                                else
-                                    exec(false)
-                            }).catch(err => reject(err))
-                        })
+                            })
+                            Popularity.DeleteWorldPublicity(worldMeta.Id).then().catch(() => {})
+                        }
                     }
                     else
                         exec(false)

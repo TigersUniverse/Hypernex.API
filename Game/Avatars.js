@@ -14,6 +14,7 @@ let Database
 let URLTools
 let SearchDatabase
 let FileUploading
+let Popularity
 
 let AvatarsCollection
 
@@ -30,6 +31,10 @@ exports.init = function (ServerConfig, usersModule, databaseModule, urlToolsModu
 
 exports.SetFileUploadingModule = function (fileUploadModule){
     FileUploading = fileUploadModule
+}
+
+exports.SetPopularityModule = function (popularotyModule) {
+    Popularity = popularotyModule
 }
 
 exports.doesAvatarExist = function (avatarid) {
@@ -241,6 +246,8 @@ exports.handleFileUpload = function (userid, tokenContent, fileid, clientAvatarM
                                         am.Builds = newbuilds
                                         delete avatarMeta.BuildPlatform
                                         am = clone(avatarMeta, am)
+                                        if(am.Publicity !== exports.Publicity.Anyone)
+                                            Popularity.DeleteAvatarPublicity(am.Id).then().catch(() => {})
                                         setAvatarMeta(am).then(r => {
                                             if(r)
                                                 exec(am)
@@ -316,6 +323,7 @@ exports.deleteAvatar = function (avatarid) {
                             let build = avatarMeta.Builds[i]
                             FileUploading.DeleteFile(avatarMeta.OwnerId, build.FileId).catch(() => {})
                         }
+                        Popularity.DeleteAvatarPublicity(avatarMeta.Id).then().catch(() => {})
                     }
                     SearchDatabase.removeDocument(AvatarsCollection, {"Id": avatarid}).then(r => {
                         if(r){

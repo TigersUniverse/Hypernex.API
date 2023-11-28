@@ -453,12 +453,19 @@ exports.isEmailRegistered = function (email) {
     })
 }
 
-exports.safeSearchUsername = function (username) {
+exports.safeSearchUsername = function (username, itemsPerPage, pageNumber) {
     return new Promise((exec, reject) => {
         SearchDatabase.find(UsersCollection, {"Username": {$regex: `.*${username}.*`, $options: 'i'}}).then(users => {
             let candidates = []
-            for(let i in users){
+            let startingIndex = itemsPerPage * pageNumber
+            let endingIndex = startingIndex + itemsPerPage
+            if(users.length <= startingIndex){
+                exec(candidates)
+                return
+            }
+            for(let i = startingIndex; i < endingIndex; i++){
                 let user = users[i]
+                if(user === undefined) continue
                 candidates.push(user.Id)
             }
             exec(candidates)
