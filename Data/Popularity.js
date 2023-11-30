@@ -235,24 +235,24 @@ function refresh(){
         // Reset Hourly
         resetHourlyCollection(AvatarPopularityCollections)
         resetHourlyCollection(WorldPopularityCollections)
-    }
-    if(now.getHours() === 12){
-        // Reset Daily
-        resetDailyCollection(AvatarPopularityCollections)
-        resetDailyCollection(WorldPopularityCollections)
-        if (now.getDay() === 0) {
-            // Reset Weekly
-            resetWeeklyCollection(AvatarPopularityCollections)
-            resetWeeklyCollection(WorldPopularityCollections)
-        }
-        if(now.getDate() === 1){
-            // Reset Monthly
-            resetMonthlyCollection(AvatarPopularityCollections)
-            resetMonthlyCollection(WorldPopularityCollections)
-            if(now.getMonth() === 0){
-                // Reset Yearly
-                resetYearlyCollection(AvatarPopularityCollections)
-                resetYearlyCollection(WorldPopularityCollections)
+        if(now.getHours() === 0){
+            // Reset Daily
+            resetDailyCollection(AvatarPopularityCollections)
+            resetDailyCollection(WorldPopularityCollections)
+            if (now.getDay() === 0) {
+                // Reset Weekly
+                resetWeeklyCollection(AvatarPopularityCollections)
+                resetWeeklyCollection(WorldPopularityCollections)
+                if(now.getDate() === 1){
+                    // Reset Monthly
+                    resetMonthlyCollection(AvatarPopularityCollections)
+                    resetMonthlyCollection(WorldPopularityCollections)
+                    if(now.getMonth() === 0){
+                        // Reset Yearly
+                        resetYearlyCollection(AvatarPopularityCollections)
+                        resetYearlyCollection(WorldPopularityCollections)
+                    }
+                }
             }
         }
     }
