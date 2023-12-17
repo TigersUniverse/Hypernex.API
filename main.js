@@ -72,6 +72,7 @@ Database.connect(ServerConfig.LoadedConfig.DatabaseInfo.DatabaseNumber,
             FileUploading.init(ServerConfig, d, u, sd, uploadsSearchCollection).then(fu => {
                 a.SetFileUploadingModule(fu)
                 let p = Popularity.Init(sd, fu, avatarPopularityCollections, worldPopularityCollections)
+                a.SetPopularityModule(p)
                 let w = Worlds.init(ServerConfig, u, d, ut, fu, sd, worldsSearchCollection, p)
                 let ss
                 if(ServerConfig.LoadedConfig.UseHTTPS)
