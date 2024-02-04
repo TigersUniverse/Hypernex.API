@@ -54,7 +54,8 @@ exports.LoadedConfig = {
     GameServerTokens: [],
     AllowAnyGameServer: false,
     RequireTokenToDownloadBuilds: false,
-    UnityVersion: "2022.3.5f1"
+    GameEngine: "Unity",
+    GameEngineVersion: "2022.3.5f1"
 }
 
 exports.init = function (){

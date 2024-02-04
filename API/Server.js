@@ -86,9 +86,10 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
         }))
     })
 
-    app.get(getAPIEndpoint() + "unityVersion", function (req, res) {
+    app.get(getAPIEndpoint() + "gameEngine", function (req, res) {
         res.end(APIMessage.craftAPIMessage(true, "Got Information", {
-            UnityVersion: serverConfig.LoadedConfig.UnityVersion
+            GameEngine: serverConfig.LoadedConfig.GameEngine,
+            GameEngineVersion: serverConfig.LoadedConfig.GameEngineVersion
         }))
     })
 
