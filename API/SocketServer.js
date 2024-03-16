@@ -418,6 +418,17 @@ function handleMessage(socketObject, parsedMessage){
                     }))
                 break
             }
+            case "requestinvite":{
+                // Required Args: {args.targetUserId}
+                let targetUserId = parsedMessage.args.targetUserId
+                let targetSocket = getSocketObjectByUserId(targetUserId)
+                if(targetSocket !== undefined){
+                    targetSocket.Socket.send(SocketMessage.craftSocketMessage("gotinviterequest", {
+                        fromUserId: socketObject.Meta.userId
+                    }))
+                }
+                break
+            }
             case "sendinvite":{
                 // Required Args: {args.targetUserId, args.gameServerId, args.toInstanceId}
                 let targetUserId = parsedMessage.args.targetUserId
