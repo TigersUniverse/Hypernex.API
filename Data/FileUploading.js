@@ -28,8 +28,7 @@ exports.init = function (c, d, u, searchDatabaseModule, uploadsCollection) {
             secretAccessKey: Config.LoadedConfig.SpacesInfo.SecretAccessKey
         })
         s3 = new AWS.S3({
-            endpoint: new AWS.Endpoint("https://" + Config.LoadedConfig.SpacesInfo.SpaceName + "." +
-                Config.LoadedConfig.SpacesInfo.Region + ".digitaloceanspaces.com"),
+            endpoint: new AWS.Endpoint(Config.LoadedConfig.SpacesInfo.ConnectionURL),
             s3ForcePathStyle: true
         })
         if(c.LoadedConfig.AVSettings.ScanFiles){

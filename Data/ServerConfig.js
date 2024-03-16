@@ -22,7 +22,8 @@ exports.LoadedConfig = {
         AccessKeyId: "",
         SecretAccessKey: "",
         Region: "nyc3",
-        SpaceName: "hypernex"
+        SpaceName: "hypernex",
+        ConnectionURL: ""
     },
     MaxFileSize: 1000,
     TrustAllDomains: false,
