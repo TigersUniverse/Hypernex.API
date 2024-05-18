@@ -191,32 +191,52 @@ function onSocketConnect(socket, req){
                         socketObject.Meta.serverTokenContent = parsedMessage.serverTokenContent
                         socketObject.Meta.isVerified = true
                         socketObject.Meta.IP = req.headers['x-forwarded-for'] || req.socket.remoteAddress
-                        https.get("https://api.seeip.org/geoip/" + socketObject.Meta.IP, res => {
-                            let body = ""
-                            res.on('data', chunk => body += chunk)
-                            res.on('end', () => {
-                                try{
-                                    let j = JSON.parse(body)
-                                    socketObject.Meta.Region = {
-                                        ContinentCode: j.continent_code,
-                                        City: j.city,
-                                        State: j.region,
-                                        Country: j.country,
-                                        Latitude: j.latitude,
-                                        Longitude: j.longitude
+                        try {
+                            https.get("https://api.seeip.org/geoip/" + socketObject.Meta.IP, res => {
+                                let body = ""
+                                res.on('data', chunk => body += chunk)
+                                res.on('end', () => {
+                                    try {
+                                        let j = JSON.parse(body)
+                                        socketObject.Meta.Region = {
+                                            ContinentCode: j.continent_code,
+                                            City: j.city,
+                                            State: j.region,
+                                            Country: j.country,
+                                            Latitude: j.latitude,
+                                            Longitude: j.longitude
+                                        }
+                                    } catch (_) {
+                                        socketObject.Meta.Region = {
+                                            ContinentCode: undefined,
+                                            City: undefined,
+                                            State: undefined,
+                                            Country: undefined,
+                                            Latitude: undefined,
+                                            Longitude: undefined
+                                        }
                                     }
-                                }catch(_){
-                                    socketObject.Meta.Region = {
-                                        ContinentCode: undefined,
-                                        City: undefined,
-                                        State: undefined,
-                                        Country: undefined,
-                                        Latitude: undefined,
-                                        Longitude: undefined
-                                    }
+                                })
+                            }).on('error', () => {
+                                socketObject.Meta.Region = {
+                                    ContinentCode: undefined,
+                                    City: undefined,
+                                    State: undefined,
+                                    Country: undefined,
+                                    Latitude: undefined,
+                                    Longitude: undefined
                                 }
                             })
-                        })
+                        } catch (_) {
+                            socketObject.Meta.Region = {
+                                ContinentCode: undefined,
+                                City: undefined,
+                                State: undefined,
+                                Country: undefined,
+                                Latitude: undefined,
+                                Longitude: undefined
+                            }
+                        }
                         socketObject.Socket.send(SocketMessage.craftSocketMessage("sendauth", {
                             gameServerId: socketObject.Meta.gameServerId,
                             gameServerToken: socketObject.Meta.serverTokenContent
@@ -421,12 +441,20 @@ function handleMessage(socketObject, parsedMessage){
             case "requestinvite":{
                 // Required Args: {args.targetUserId}
                 let targetUserId = parsedMessage.args.targetUserId
-                let targetSocket = getSocketObjectByUserId(targetUserId)
-                if(targetSocket !== undefined){
-                    targetSocket.Socket.send(SocketMessage.craftSocketMessage("gotinviterequest", {
-                        fromUserId: socketObject.Meta.userId
-                    }))
-                }
+                Users.getUserDataFromUserId(targetUserId).then(targetUserData => {
+                    if(targetUserData !== undefined) {
+                        if(ArrayTools.find(targetUserData.Friends, socketObject.Meta.userId) !== undefined &&
+                            targetUserData.Bio.Status !== Users.Status.DoNotDisturb &&
+                            targetUserData.Bio.Status !== Users.Status.Offline) {
+                            let targetSocket = getSocketObjectByUserId(targetUserId)
+                            if (targetSocket !== undefined) {
+                                targetSocket.Socket.send(SocketMessage.craftSocketMessage("gotinviterequest", {
+                                    fromUserId: socketObject.Meta.userId
+                                }))
+                            }
+                        }
+                    }
+                }).catch(() => {})
                 break
             }
             case "sendinvite":{
@@ -806,6 +834,16 @@ function userJoinedInstance(gameServerId, instanceId, userSocketObject){
     })
 }
 
+exports.IsUserInInstance = function (userId){
+    let v = false
+    for (let i = 0; i < Instances.length; i++){
+        let instance = Instances[i]
+        if(ArrayTools.find(instance.ConnectedUsers, userId) !== undefined)
+            v = true
+    }
+    return v
+}
+
 exports.GetSafeInstances = function (user) {
     return new Promise(exec => {
         let instanceLoops = 0
@@ -859,7 +897,7 @@ exports.GetPublicInstancesOfWorld = function (worldId) {
     return instances
 }
 
-exports.GetALlGameServers = function () {
+exports.GetAllGameServers = function () {
     let gameServers = []
     for (let i = 0; i < Sockets.length; i++){
         let socket = Sockets[i]

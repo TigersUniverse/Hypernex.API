@@ -33,7 +33,7 @@ function getAPIEndpoint(){
 
 function isUserBodyValid(property, targetType){
     let v = true
-    if(property === undefined)
+    if(property === undefined || property === null)
         v = false
     if(targetType !== undefined)
         if(typeof property !== targetType)
@@ -1456,7 +1456,7 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
     })
 
     app.get(getAPIEndpoint() + "gameServers", function (req, res){
-        let gameServers = SocketServer.GetALlGameServers()
+        let gameServers = SocketServer.GetAllGameServers()
         res.end(APIMessage.craftAPIMessage(true, "Got GameServers!", {
             GameServers: gameServers
         }))
@@ -1526,6 +1526,231 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
         } catch(_){
             res.end(APIMessage.craftAPIMessage(false, "Failed to get popularity!"))
         }
+    })
+
+    app.post(getAPIEndpoint() + "moderation", function (req, res) {
+        let userid = req.body.userid
+        let tokenContent = req.body.tokenContent
+        let action = req.body.action
+        if(isUserBodyValid(userid, "string") && isUserBodyValid(tokenContent, "string")){
+            Users.isUserIdTokenValid(userid, tokenContent).then(isTokenValid => {
+                if(isTokenValid){
+                    Users.getUserDataFromUserId(userid).then(user => {
+                        if(user !== undefined){
+                            switch (action.toLowerCase()) {
+                                case "addbadge":{
+                                    if(user.Rank < Users.Rank.Admin){
+                                        res.end(APIMessage.craftAPIMessage(false, "Invalid permissions!"))
+                                        break
+                                    }
+                                    // Add a badge to a user
+                                    let targetUserId = req.body.targetUserId
+                                    let badgeName = req.body.badgeName
+                                    if(!isUserBodyValid(targetUserId, "string") || !isUserBodyValid(badgeName, "string")){
+                                        res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+                                        break
+                                    }
+                                    Users.addBadge(targetUserId, badgeName).then(r => {
+                                        if(r){
+                                            res.end(APIMessage.craftAPIMessage(true, "Done!"))
+                                        }
+                                        else{
+                                            res.end(APIMessage.craftAPIMessage(false, "Could not add badge!"))
+                                        }
+                                    }).catch(_ => res.end(APIMessage.craftAPIMessage(false, "Could not add badge!")))
+                                    break
+                                }
+                                case "removebadge":{
+                                    if(user.Rank < Users.Rank.Admin){
+                                        res.end(APIMessage.craftAPIMessage(false, "Invalid permissions!"))
+                                        break
+                                    }
+                                    // Remove a user's badge
+                                    let targetUserId = req.body.targetUserId
+                                    let badgeName = req.body.badgeName
+                                    if(!isUserBodyValid(targetUserId, "string") || !isUserBodyValid(badgeName, "string")){
+                                        res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+                                        break
+                                    }
+                                    Users.removeBadge(targetUserId, badgeName).then(r => {
+                                        if(r){
+                                            res.end(APIMessage.craftAPIMessage(true, "Done!"))
+                                        }
+                                        else{
+                                            res.end(APIMessage.craftAPIMessage(false, "Could not add badge!"))
+                                        }
+                                    }).catch(_ => res.end(APIMessage.craftAPIMessage(false, "Could not add badge!")))
+                                    break
+                                }
+                                case "setrank":{
+                                    if(user.Rank < Users.Rank.Admin){
+                                        res.end(APIMessage.craftAPIMessage(false, "Invalid permissions!"))
+                                        break
+                                    }
+                                    // Set the user's rank
+                                    let targetUserId = req.body.targetUserId
+                                    let newRank = req.body.newRank
+                                    if(!isUserBodyValid(targetUserId, "string") || !isUserBodyValid(newRank)){
+                                        res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+                                        break
+                                    }
+                                    Users.setRank(targetUserId, newRank).then(r => {
+                                        if(r){
+                                            res.end(APIMessage.craftAPIMessage(true, "Done!"))
+                                        }
+                                        else{
+                                            res.end(APIMessage.craftAPIMessage(false, "Could not set rank!"))
+                                        }
+                                    }).catch(_ => res.end(APIMessage.craftAPIMessage(false, "Could not set rank!")))
+                                    break
+                                }
+                                case "warnuser":{
+                                    if(user.Rank < Users.Rank.Moderator){
+                                        res.end(APIMessage.craftAPIMessage(false, "Invalid permissions!"))
+                                        break
+                                    }
+                                    // Give the user a warning
+                                    let targetUserId = req.body.targetUserId
+                                    let warnReason = req.body.warnReason
+                                    let warnDescription = req.body.warnDescription
+                                    if(!isUserBodyValid(targetUserId, "string") || !isUserBodyValid(warnReason, "string") || !isUserBodyValid(warnDescription, "string")){
+                                        res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+                                        break
+                                    }
+                                    Users.warnUser(targetUserId, warnReason, warnDescription).then(r => {
+                                        if(r){
+                                            res.end(APIMessage.craftAPIMessage(true, "Done!"))
+                                        }
+                                        else{
+                                            res.end(APIMessage.craftAPIMessage(false, "Could not warn!"))
+                                        }
+                                    }).catch(_ => res.end(APIMessage.craftAPIMessage(false, "Could not warn!")))
+                                    break
+                                }
+                                case "banuser":{
+                                    if(user.Rank < Users.Rank.Moderator){
+                                        res.end(APIMessage.craftAPIMessage(false, "Invalid permissions!"))
+                                        break
+                                    }
+                                    // Ban the user
+                                    let targetUserId = req.body.targetUserId
+                                    let banReason = req.body.banReason
+                                    let banDescription = req.body.banDescription
+                                    let timeEnd = req.body.timeEnd
+                                    if(!isUserBodyValid(targetUserId, "string") || !isUserBodyValid(banReason, "string") || !isUserBodyValid(banDescription, "string") || !isUserBodyValid(timeEnd)){
+                                        res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+                                        break
+                                    }
+                                    Users.banUser(targetUserId, banReason, banDescription, timeEnd).then(r => {
+                                        if(r){
+                                            res.end(APIMessage.craftAPIMessage(true, "Done!"))
+                                        }
+                                        else{
+                                            res.end(APIMessage.craftAPIMessage(false, "Could not ban!"))
+                                        }
+                                    }).catch(_ => res.end(APIMessage.craftAPIMessage(false, "Could not ban!")))
+                                    break
+                                }
+                                case "unbanuser":{
+                                    if(user.Rank < Users.Rank.Moderator){
+                                        res.end(APIMessage.craftAPIMessage(false, "Invalid permissions!"))
+                                        break
+                                    }
+                                    // Revert the user's ban
+                                    let targetUserId = req.body.targetUserId
+                                    if(!isUserBodyValid(targetUserId, "string")){
+                                        res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+                                        break
+                                    }
+                                    Users.unBanUser(targetUserId).then(r => {
+                                        if(r){
+                                            res.end(APIMessage.craftAPIMessage(true, "Done!"))
+                                        }
+                                        else{
+                                            res.end(APIMessage.craftAPIMessage(false, "Could not ban!"))
+                                        }
+                                    }).catch(_ => res.end(APIMessage.craftAPIMessage(false, "Could not ban!")))
+                                    break
+                                }
+                                case "deleteavatar":{
+                                    if(user.Rank < Users.Rank.Moderator){
+                                        res.end(APIMessage.craftAPIMessage(false, "Invalid permissions!"))
+                                        break
+                                    }
+                                    // Delete an avatar
+                                    let targetUserId = req.body.targetUserId
+                                    let avatarid = req.body.avatarId
+                                    if(!isUserBodyValid(targetUserId, "string") || !isUserBodyValid(avatarid, "string")){
+                                        res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+                                        break
+                                    }
+                                    Users.moderatorRemoveAvatar(userid, avatarid).then(r => {
+                                        if(r){
+                                            Avatars.deleteAvatar(avatarid).then(rr => {
+                                                if(rr)
+                                                    res.end(APIMessage.craftAPIMessage(true, "Removed avatar!"))
+                                                else
+                                                    res.end(APIMessage.craftAPIMessage(false, "Failed to remove avatar!"))
+                                            }).catch(err => {
+                                                Logger.Error("Failed to remove avatar for reason " + err)
+                                                res.end(APIMessage.craftAPIMessage(false, "Failed to remove avatar!"))
+                                            })
+                                        }
+                                        else
+                                            res.end(APIMessage.craftAPIMessage(false, "Failed to remove avatar!"))
+                                    }).catch(err => {
+                                        Logger.Error("Failed to remove avatar for reason " + err)
+                                        res.end(APIMessage.craftAPIMessage(false, "Failed to remove avatar!"))
+                                    })
+                                    break
+                                }
+                                case "deleteworld":{
+                                    if(user.Rank < Users.Rank.Moderator){
+                                        res.end(APIMessage.craftAPIMessage(false, "Invalid permissions!"))
+                                        break
+                                    }
+                                    // Delete a world
+                                    let targetUserId = req.body.targetUserId
+                                    let worldid = req.body.worldId
+                                    if(!isUserBodyValid(targetUserId, "string") || !isUserBodyValid(worldid, "string")){
+                                        res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+                                        break
+                                    }
+                                    Users.moderatorRemoveWorld(userid, tokenContent, worldid).then(r => {
+                                        if(r){
+                                            Worlds.deleteWorld(worldid).then(rr => {
+                                                if(rr)
+                                                    res.end(APIMessage.craftAPIMessage(true, "Removed world!"))
+                                                else
+                                                    res.end(APIMessage.craftAPIMessage(false, "Failed to remove world!"))
+                                            }).catch(err => {
+                                                Logger.Error("Failed to remove world for reason " + err)
+                                                res.end(APIMessage.craftAPIMessage(false, "Failed to remove world!"))
+                                            })
+                                        }
+                                        else
+                                            res.end(APIMessage.craftAPIMessage(false, "Failed to remove world!"))
+                                    }).catch(err => {
+                                        Logger.Error("Failed to remove world for reason " + err)
+                                        res.end(APIMessage.craftAPIMessage(false, "Failed to remove world!"))
+                                    })
+                                    break
+                                }
+                                default:
+                                    res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+                                    break
+                            }
+                        }
+                        else
+                            res.end(APIMessage.craftAPIMessage(false, "Could not find user!"))
+                    }).catch(() => res.end(APIMessage.craftAPIMessage(false, "Failed to moderate!")))
+                }
+                else
+                    res.end(APIMessage.craftAPIMessage(false, "Invalid Token!"))
+            }).catch(() => res.end(APIMessage.craftAPIMessage(false, "Failed to moderate!")))
+        }
+        else
+            res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
     })
 
     app.get(getAPIEndpoint() + "randomImage", function (req, res) {

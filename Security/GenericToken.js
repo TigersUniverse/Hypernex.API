@@ -8,9 +8,9 @@ const DAY_HOUR = 24
 exports.createToken = function (app, hoursExpire, noExpire, safeTokenContent) {
     if(app === undefined || app.toLowerCase() === "api")
         app = "unknown"
-    // Default time is 7 days
+    // Default time is 30 days
     if(hoursExpire === undefined)
-        hoursExpire = DateTools.getUnixTime(date.addHours(new Date(), DAY_HOUR * 7))
+        hoursExpire = DateTools.getUnixTime(date.addHours(new Date(), DAY_HOUR * 30))
     else
         hoursExpire = DateTools.getUnixTime(date.addHours(new Date(), hoursExpire))
     if(noExpire)

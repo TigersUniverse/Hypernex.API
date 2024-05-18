@@ -10,6 +10,7 @@ const Emailing = require("./../Data/Emailing.js")
 const DateTools = require("./../Tools/DateTools.js")
 const ArrayTools = require("./../Tools/ArrayTools.js")
 const PronounTools = require("./../Tools/PronounTools.js")
+const APIMessage = require("../API/APIMessage");
 
 let Database
 let OTP
@@ -119,6 +120,7 @@ exports.censorUser = function (userdata){
         d.Following = userdata.Following
         d.Followers = userdata.Followers
     }
+    d.isInWorld = SocketServer.IsUserInInstance(userdata.Id) && userdata.Bio.Status !== exports.Status.DoNotDisturb && userdata.Bio.Status !== exports.Status.Offline
     return d
 }
 
@@ -956,6 +958,127 @@ exports.resetPasswordWithUserToken = function (userid, tokenContent, newPassword
     })
 }
 
+exports.addBadge = function (userid, badgeName){
+    return new Promise((exec, err) => {
+        exports.getUserDataFromUserId(userid).then(targetUser => {
+            if(targetUser !== undefined){
+                if(ArrayTools.find(targetUser.Badges, badgeName.toLowerCase()) === undefined) {
+                    targetUser.Badges.push(badgeName.toLowerCase())
+                    setUserData(targetUser).then(r => exec(r)).catch(e => err(e))
+                }
+                else{
+                    exec(true)
+                }
+            }
+            else
+                exec(false)
+        }).catch(e => err(e))
+    })
+}
+
+exports.removeBadge = function (userid, badgeName){
+    return new Promise((exec, err) => {
+        exports.getUserDataFromUserId(userid).then(targetUser => {
+            if(targetUser !== undefined){
+                targetUser.Badges = ArrayTools.filterArray(targetUser.Badges, badgeName.toLowerCase())
+                setUserData(targetUser).then(r => exec(r)).catch(e => err(e))
+                exec(true)
+            }
+            else
+                exec(false)
+        }).catch(e => err(e))
+    })
+}
+
+exports.setRank = function (userid, newRank){
+    return new Promise((exec, err) => {
+        exports.getUserDataFromUserId(userid).then(targetUser => {
+            if(targetUser !== undefined){
+                try{
+                    newRank = parseInt(newRank)
+                    if(newRank > exports.Rank.Owner || newRank < exports.Rank.Incompleter){
+                        exec(false)
+                        return
+                    }
+                    targetUser.Rank = newRank
+                    setUserData(targetUser).then(r => exec(r)).catch(e => err(e))
+                }catch (e) {
+                    err(e)
+                }
+            }
+            else
+                exec(false)
+        }).catch(e => err(e))
+    })
+}
+
+exports.warnUser = function (userid, reason, description) {
+    return new Promise((exec, err) => {
+        exports.getUserDataFromUserId(userid).then(targetUser => {
+            if(targetUser !== undefined){
+                targetUser.WarnStatus = {
+                    isWarned: true,
+                    TimeWarned: DateTools.getUnixTime(new Date()),
+                    WarnReason: reason,
+                    WarnDescription: description
+                }
+                targetUser.WarnCount++
+                setUserData(targetUser).then(r => exec(r)).catch(e => err(e))
+            }
+            else
+                exec(false)
+        }).catch(e => err(e))
+    })
+}
+
+exports.banUser = function (userid, reason, description, endUnix) {
+    return new Promise((exec, err) => {
+        exports.getUserDataFromUserId(userid).then(targetUser => {
+            if(targetUser !== undefined){
+                try{
+                    endUnix = parseInt(endUnix)
+                    targetUser.BanStatus = {
+                        isBanned: true,
+                        BanBegin: DateTools.getUnixTime(new Date()),
+                        BanEnd: endUnix,
+                        BanReason: reason,
+                        BanDescription: description
+                    }
+                    targetUser.BanCount++
+                    setUserData(targetUser).then(r => exec(r)).catch(e => err(e))
+                }catch(e){
+                    err(e)
+                }
+            }
+            else
+                exec(false)
+        }).catch(e => err(e))
+    })
+}
+
+exports.unBanUser = function (userid) {
+    return new Promise((exec, err) => {
+        exports.getUserDataFromUserId(userid).then(targetUser => {
+            if(targetUser !== undefined){
+                if(targetUser.BanStatus === undefined){
+                    targetUser.BanStatus = {
+                        isBanned: false,
+                        BanBegin: 0,
+                        BanEnd: 0,
+                        BanReason: "",
+                        BanDescription: ""
+                    }
+                }
+                else
+                    targetUser.BanStatus.isBanned = false
+                setUserData(targetUser).then(r => exec(r)).catch(e => err(e))
+            }
+            else
+                exec(false)
+        }).catch(e => err(e))
+    })
+}
+
 function isValidBio(bio){
     try{
         let pav = false
@@ -1459,6 +1582,26 @@ exports.removeAvatar = function (userid, tokenContent, avatarId) {
     })
 }
 
+exports.moderatorRemoveAvatar = function (userid, avatarId) {
+    return new Promise(exec => {
+        exports.isUserIdTokenValid(userid, tokenContent).then(validToken => {
+            exports.getUserDataFromUserId(userid).then(userdata => {
+                if(userdata){
+                    userdata.Avatars = ArrayTools.customFilterArray(userdata.Avatars, item => item.Id !== avatarId)
+                    setUserData(userdata).then(r => {
+                        if(r)
+                            exec(true)
+                        else
+                            exec(false)
+                    }).catch(() => exec(false))
+                }
+                else
+                    exec(false)
+            }).catch(() => exec(false))
+        }).catch(() => exec(false))
+    })
+}
+
 exports.addWorld = function (userid, worldMeta) {
     return new Promise(exec => {
         exports.getUserDataFromUserId(userid).then(userdata => {
@@ -1495,6 +1638,24 @@ exports.removeWorld = function (userid, tokenContent, worldId) {
                                 exec(false)
                         }).catch(() => exec(false))
                     }
+                    else
+                        exec(false)
+                }).catch(() => exec(false))
+            }
+            else
+                exec(false)
+        }).catch(() => exec(false))
+    })
+}
+
+exports.moderatorRemoveWorld = function (userid, worldId) {
+    return new Promise(exec => {
+        exports.getUserDataFromUserId(userid).then(userdata => {
+            if(userdata){
+                userdata.Worlds = ArrayTools.customFilterArray(userdata.Worlds, item => item.Id !== worldId)
+                setUserData(userdata).then(r => {
+                    if(r)
+                        exec(true)
                     else
                         exec(false)
                 }).catch(() => exec(false))
