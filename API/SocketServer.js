@@ -468,16 +468,24 @@ function handleMessage(socketObject, parsedMessage){
                 let instanceMeta = getInstanceById(gameServerId, toInstanceId)
                 if(targetSocket !== undefined && gameServerSocket !== undefined && instanceMeta !== undefined){
                     if(ArrayTools.find(instanceMeta.ConnectedUsers, parsedMessage.userId) !== undefined){
-                        canUserInvite(instanceMeta, targetUserId, socketObject.Meta.userId).then(isWelcome => {
-                            if(isWelcome){
-                                instanceMeta.InvitedUsers.push(targetUserId)
-                                targetSocket.Socket.send(SocketMessage.craftSocketMessage("gotinvite", {
-                                    fromUserId: socketObject.Meta.userId,
-                                    toGameServerId: gameServerId,
-                                    toInstanceId: toInstanceId,
-                                    worldId: instanceMeta.WorldId,
-                                    assetToken: assetToken
-                                }))
+                        Users.getUserDataFromUserId(targetUserId).then(targetUserData => {
+                            if(targetUserData !== undefined) {
+                                if(ArrayTools.find(targetUserData.Friends, socketObject.Meta.userId) !== undefined &&
+                                    targetUserData.Bio.Status !== Users.Status.DoNotDisturb &&
+                                    targetUserData.Bio.Status !== Users.Status.Offline){
+                                    canUserInvite(instanceMeta, targetUserId, socketObject.Meta.userId).then(isWelcome => {
+                                        if(isWelcome){
+                                            instanceMeta.InvitedUsers.push(targetUserId)
+                                            targetSocket.Socket.send(SocketMessage.craftSocketMessage("gotinvite", {
+                                                fromUserId: socketObject.Meta.userId,
+                                                toGameServerId: gameServerId,
+                                                toInstanceId: toInstanceId,
+                                                worldId: instanceMeta.WorldId,
+                                                assetToken: assetToken
+                                            }))
+                                        }
+                                    }).catch(() => {})
+                                }
                             }
                         }).catch(() => {})
                     }
