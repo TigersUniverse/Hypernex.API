@@ -52,6 +52,10 @@ exports.LoadedConfig = {
         clamdTimeout: null,
         clamdHealthCheckInterval: null
     },
+    EmailInterface: "sendmail",
+    SESSettings:{
+        region: "nyc3"
+    },
     GameServerTokens: [],
     AllowAnyGameServer: false,
     RequireTokenToDownloadBuilds: false,
