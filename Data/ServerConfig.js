@@ -53,14 +53,19 @@ exports.LoadedConfig = {
         clamdHealthCheckInterval: null
     },
     EmailInterface: "sendmail",
-    SESSettings:{
-        region: "nyc3"
+    SMTPSettings:{
+        Server: "",
+        Port: 465,
+        Secure: true,
+        Username: "",
+        Password: "",
+        OverrideDomain: ""
     },
     GameServerTokens: [],
     AllowAnyGameServer: false,
     RequireTokenToDownloadBuilds: false,
     GameEngine: "Unity",
-    GameEngineVersion: "2022.3.5f1"
+    GameEngineVersion: "2023.2.20f1"
 }
 
 exports.init = function (){

@@ -1,6 +1,8 @@
 const nodemailer = require("nodemailer")
 
-exports.create = function (){return this;}
+exports.create = function (config){return this;}
+
+exports.getDomain = function () {return undefined}
 
 exports.sendEmail = function (data) {
     return new Promise((exec, reject) => {

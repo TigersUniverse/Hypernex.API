@@ -6,6 +6,7 @@ const Logger = require("./../Logging/Logger.js")
 const ID = require("./../Data/ID.js")
 
 const sendmail = require("./../Interfacing/SendMail.js")
+const smtpmail = require("./../Interfacing/SMTPMail.js")
 
 let baseURL
 let domain
@@ -22,13 +23,17 @@ exports.init = function (ServerConfig){
     domain = new URL(baseURL).hostname
     Logger.Log("Initialized Mailing!")
     switch (ServerConfig.LoadedConfig.EmailInterface.toLowerCase()){
-        case "ses":
-            // TODO: SES Interface
+        case "smtp":
+            emailInterface = smtpmail
             break
         default:
-            emailInterface = sendmail.create()
+            emailInterface = sendmail
             break
     }
+    emailInterface = emailInterface.create(ServerConfig.LoadedConfig)
+    let overrideDomain = emailInterface.getDomain()
+    if(overrideDomain !== undefined)
+        domain = overrideDomain
 }
 
 exports.isValidEmail = function (email) {
