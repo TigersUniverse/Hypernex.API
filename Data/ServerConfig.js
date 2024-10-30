@@ -57,6 +57,7 @@ exports.LoadedConfig = {
         Server: "",
         Port: 465,
         Secure: true,
+        NoTLS: false,
         Username: "",
         Password: "",
         OverrideDomain: ""

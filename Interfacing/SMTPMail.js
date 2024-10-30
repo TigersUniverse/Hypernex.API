@@ -15,18 +15,18 @@ exports.getDomain = function () {
 
 exports.sendEmail = function (data) {
     return new Promise((exec, reject) => {
-        const transporter = nodemailer.createTransport({
+        let connectionInfo = {
             host: ServerConfig.SMTPSettings.Server,
             port: ServerConfig.SMTPSettings.Port,
             secure: ServerConfig.SMTPSettings.Secure,
             auth: {
                 user: ServerConfig.SMTPSettings.Username,
                 pass: ServerConfig.SMTPSettings.Password,
-            },
-            tls: {
-                ciphers: "SSLv3"
             }
-        })
+        }
+        if(!ServerConfig.SMTPSettings.NoTLS)
+            connectionInfo.tls = { ciphers: "SSLv3" }
+        const transporter = nodemailer.createTransport(connectionInfo)
         const mailOptions = {
             from: data.from,
             to: data.to,
