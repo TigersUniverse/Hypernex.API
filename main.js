@@ -36,6 +36,8 @@ if(ServerConfig.LoadedConfig.TrustAllDomains)
     Logger.Warning("TrustAllDomains is enabled, this should not be done for production!")
 if(ServerConfig.LoadedConfig.AllowAnyGameServer)
     Logger.Warning("AllowAnyGameServer is enabled! Any server can pose as a game server, this may be dangerous!")
+if(ServerConfig.LoadedConfig.EmailInterface.toLowerCase() === "smtp" && !ServerConfig.LoadedConfig.SMTPSettings.Secure)
+    Logger.Warning("SMTP Security is disabled, this should not be done for production!")
 
 // Database
 let databaseUsername

@@ -1,10 +1,12 @@
 const fs = require("fs")
 const validator = require("validator")
 const cheerio = require("cheerio")
-const nodemailer = require('nodemailer');
 
 const Logger = require("./../Logging/Logger.js")
 const ID = require("./../Data/ID.js")
+
+const sendmail = require("./../Interfacing/SendMail.js")
+const smtpmail = require("./../Interfacing/SMTPMail.js")
 
 let baseURL
 let domain
@@ -12,12 +14,26 @@ let domain
 let emailVerificationHtml
 let passwordResetHtml
 
+let emailInterface
+
 exports.init = function (ServerConfig){
     emailVerificationHtml = fs.readFileSync(ServerConfig.LoadedConfig.HTMLPaths.EmailVerificationPath, 'utf8')
     passwordResetHtml = fs.readFileSync(ServerConfig.LoadedConfig.HTMLPaths.ResetPasswordPath, 'utf8')
     baseURL = ServerConfig.LoadedConfig.BaseURL
     domain = new URL(baseURL).hostname
     Logger.Log("Initialized Mailing!")
+    switch (ServerConfig.LoadedConfig.EmailInterface.toLowerCase()){
+        case "smtp":
+            emailInterface = smtpmail
+            break
+        default:
+            emailInterface = sendmail
+            break
+    }
+    emailInterface = emailInterface.create(ServerConfig.LoadedConfig)
+    let overrideDomain = emailInterface.getDomain()
+    if(overrideDomain !== undefined)
+        domain = overrideDomain
 }
 
 exports.isValidEmail = function (email) {
@@ -25,19 +41,7 @@ exports.isValidEmail = function (email) {
 }
 
 exports.sendEmail = function (data) {
-    return new Promise((exec, reject) => {
-        const transporter = nodemailer.createTransport({sendmail: true}, {
-            from: data.from,
-            to: data.to,
-            subject: data.subject,
-        })
-        transporter.sendMail({html: data.html}, err => {
-            if(err)
-                reject(err)
-            else
-                exec(true)
-        })
-    })
+    return emailInterface.sendEmail(data)
 }
 
 exports.sendVerificationEmailToUser = function (userdata) {
