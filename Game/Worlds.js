@@ -67,17 +67,15 @@ exports.getWorldMetaById = function (worldid) {
 
 exports.getWorldMetaByFileId = function (userId, fileId) {
     return new Promise(exec => {
-        Users.getUserDataFromUserId(userId).then(userMeta => {
+        Users.getUserDataFromUserId(userId).then(async userMeta => {
             if(userMeta !== undefined){
                 let maxWorldChecks = userMeta.Worlds.length
                 if(maxWorldChecks === 0)
                     exec(undefined)
                 else{
-                    let r
-                    let checks = 0
-                    for(let i = 0; i < maxWorldChecks; i++){
-                        let avatarId = userMeta.Worlds[i]
-                        exports.getWorldMetaById(avatarId).then(worldMeta => {
+                    let r = undefined
+                    let worldMetaPromises = userMeta.Worlds.map(worldId => {
+                        return exports.getWorldMetaById(worldId).then(worldMeta => {
                             if(worldMeta !== undefined){
                                 for(let j = 0; j < worldMeta.Builds.length; j++){
                                     let build = worldMeta.Builds[j]
@@ -88,15 +86,10 @@ exports.getWorldMetaByFileId = function (userId, fileId) {
                                     }
                                 }
                             }
-                            checks++
-                        }).catch(() => checks++)
-                        let x = setInterval(() => {
-                            if(checks >= maxWorldChecks){
-                                exec(r)
-                                clearInterval(x)
-                            }
-                        }, 10)
-                    }
+                        }).catch(() => {})
+                    })
+                    await Promise.all(worldMetaPromises)
+                    exec(r)
                 }
             }
             else
@@ -241,6 +234,15 @@ function clone(oldWorldMeta, newWorldMeta){
     return newWorldMeta
 }
 
+function SetPopularity(worldMeta){
+    Popularity.GetPopularityObject(worldMeta.Id).then(obj => {
+        if(obj !== undefined) {
+            Popularity.SetTags(obj, worldMeta.Tags)
+            Popularity.UpdateDocument(obj).then().catch(() => {})
+        }
+    }).catch(() => {})
+}
+
 exports.handleFileUpload = function (userid, tokenContent, fileid, clientWorldMeta) {
     return new Promise((exec, reject) => {
         Users.isUserIdTokenValid(userid, tokenContent).then(validToken => {
@@ -272,8 +274,10 @@ exports.handleFileUpload = function (userid, tokenContent, fileid, clientWorldMe
                                         delete worldMeta.BuildPlatform
                                         delete worldMeta.ServerScripts
                                         setWorldMeta(worldMeta).then(r => {
-                                            if (r)
+                                            if (r) {
                                                 exec(worldMeta)
+                                                SetPopularity(worldMeta)
+                                            }
                                             else
                                                 exec(undefined)
                                         }).catch(err => reject(err))
@@ -310,8 +314,10 @@ exports.handleFileUpload = function (userid, tokenContent, fileid, clientWorldMe
                                             if(wm.Publicity !== exports.Publicity.Anyone)
                                                 Popularity.DeleteWorldPublicity(worldMeta.Id).then().catch(() => {})
                                             setWorldMeta(wm).then(r => {
-                                                if(r)
+                                                if(r) {
                                                     exec(wm)
+                                                    SetPopularity(wm)
+                                                }
                                                 else
                                                     exec(undefined)
                                             }).catch(err => reject(err))
@@ -338,8 +344,10 @@ exports.handleFileUpload = function (userid, tokenContent, fileid, clientWorldMe
                                                     if(wm.Publicity !== exports.Publicity.Anyone)
                                                         Popularity.DeleteWorldPublicity(worldMeta.Id).then().catch(() => {})
                                                     setWorldMeta(wm).then(r => {
-                                                        if(r)
+                                                        if(r) {
                                                             exec(wm)
+                                                            SetPopularity(wm)
+                                                        }
                                                         else
                                                             exec(undefined)
                                                     }).catch(err => reject(err))

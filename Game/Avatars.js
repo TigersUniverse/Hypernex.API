@@ -70,17 +70,15 @@ exports.getAvatarMetaById = function (avatarid) {
 
 exports.getAvatarMetaByFileId = function (userId, fileId) {
     return new Promise(exec => {
-        Users.getUserDataFromUserId(userId).then(userMeta => {
+        Users.getUserDataFromUserId(userId).then(async userMeta => {
             if(userMeta !== undefined){
                 let maxAvatarChecks = userMeta.Avatars.length
                 if(maxAvatarChecks === 0)
                     exec(undefined)
                 else{
-                    let r
-                    let checks = 0
-                    for(let i = 0; i < maxAvatarChecks; i++){
-                        let avatarId = userMeta.Avatars[i]
-                        exports.getAvatarMetaById(avatarId).then(avatarMeta => {
+                    let r = undefined
+                    let avatarMetaPromises = userMeta.Avatars.map(avatarId => {
+                        return exports.getAvatarMetaById(avatarId).then(avatarMeta => {
                             if(avatarMeta !== undefined){
                                 for(let j = 0; j < avatarMeta.Builds.length; j++){
                                     let build = avatarMeta.Builds[j]
@@ -91,15 +89,10 @@ exports.getAvatarMetaByFileId = function (userId, fileId) {
                                     }
                                 }
                             }
-                            checks++
-                        }).catch(() => checks++)
-                        let x = setInterval(() => {
-                            if(checks >= maxAvatarChecks){
-                                exec(r)
-                                clearInterval(x)
-                            }
-                        }, 10)
-                    }
+                        }).catch(() => {})
+                    })
+                    await Promise.all(avatarMetaPromises)
+                    exec(r)
                 }
             }
             else
@@ -191,6 +184,15 @@ function clone(oldAvatarMeta, newAvatarMeta){
     return newAvatarMeta
 }
 
+function SetPopularity(avatarMeta){
+    Popularity.GetPopularityObject(avatarMeta.Id).then(obj => {
+        if(obj !== undefined) {
+            Popularity.SetTags(obj, avatarMeta.Tags)
+            Popularity.UpdateDocument(obj).then().catch(() => {})
+        }
+    }).catch(() => {})
+}
+
 exports.handleFileUpload = function (userid, tokenContent, fileid, clientAvatarMeta) {
     return new Promise((exec, reject) => {
         Users.isUserIdTokenValid(userid, tokenContent).then(validToken => {
@@ -220,8 +222,10 @@ exports.handleFileUpload = function (userid, tokenContent, fileid, clientAvatarM
                                         }]
                                         delete avatarMeta.BuildPlatform
                                         setAvatarMeta(avatarMeta).then(r => {
-                                            if(r)
+                                            if(r) {
                                                 exec(avatarMeta)
+                                                SetPopularity(avatarMeta)
+                                            }
                                             else
                                                 exec(undefined)
                                         }).catch(err => reject(err))
@@ -249,8 +253,10 @@ exports.handleFileUpload = function (userid, tokenContent, fileid, clientAvatarM
                                         if(am.Publicity !== exports.Publicity.Anyone)
                                             Popularity.DeleteAvatarPublicity(am.Id).then().catch(() => {})
                                         setAvatarMeta(am).then(r => {
-                                            if(r)
+                                            if(r) {
                                                 exec(am)
+                                                SetPopularity(am)
+                                            }
                                             else
                                                 exec(undefined)
                                         }).catch(err => reject(err))

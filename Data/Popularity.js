@@ -3,17 +3,24 @@ let FileUploading
 
 let AvatarPopularityCollections
 let WorldPopularityCollections
+let Avatars
+let Worlds
 
 const RefreshTime = 60000
 
-exports.Init = function (searchDatabase, fileUploading, avatarPopularityCollections, worldPopularityCollections) {
+exports.Init = function (searchDatabase, fileUploading, avatarPopularityCollections, worldPopularityCollections, avatars) {
     SearchDatabase = searchDatabase
     FileUploading = fileUploading
     AvatarPopularityCollections = avatarPopularityCollections
     WorldPopularityCollections = worldPopularityCollections
+    Avatars = avatars
     refresh()
     setInterval(refresh, RefreshTime)
     return this
+}
+
+exports.SetWorldsModule = function(worlds){
+    Worlds = worlds
 }
 
 exports.GetOrCreatePopularity = function (id) {
@@ -39,16 +46,46 @@ exports.GetOrCreatePopularity = function (id) {
             }
             if(!found){
                 // Create a new one
-                let obj = createNewPopularityObject(id)
-                SearchDatabase.createDocument(collection, obj).then(sdr => {
-                    if(sdr)
-                        exec(true)
-                    else
-                        exec(new Error("Failed to create new document"))
+                createNewPopularityObject(id, split).then(obj => {
+                    SearchDatabase.createDocument(collection, obj).then(sdr => {
+                        if(sdr)
+                            exec(true)
+                        else
+                            exec(new Error("Failed to create new document"))
+                    }).catch(err => reject(err))
                 }).catch(err => reject(err))
             }
             else
                 exec(found)
+        }).catch(err => reject(err))
+    })
+}
+
+exports.GetPopularityObject = function (id) {
+    return new Promise((exec, reject) => {
+        let collection
+        let split = id.split('_')[0]
+        if(split === "avatar")
+            collection = AvatarPopularityCollections
+        else if(split === "world")
+            collection = WorldPopularityCollections
+        else {
+            reject(new Error("Failed to parse Id correctly"))
+            return
+        }
+        SearchDatabase.find(collection, {"Id": id}).then(objects => {
+            let found = false
+            for(let i in objects){
+                let obj = objects[i]
+                if(obj.Id === id){
+                    found = obj
+                    break
+                }
+            }
+            if(found)
+                exec(found)
+            else
+                exec(undefined)
         }).catch(err => reject(err))
     })
 }
@@ -59,6 +96,10 @@ exports.AddUsage = function (PopularityObject){
     PopularityObject.Weekly.Usages++
     PopularityObject.Monthly.Usages++
     PopularityObject.Yearly.Usages++
+}
+
+exports.SetTags = function (PopularityObject, tags){
+    PopularityObject.Tags = tags
 }
 
 exports.UpdateDocument = function (PopularityObject) {
@@ -82,7 +123,7 @@ exports.UpdateDocument = function (PopularityObject) {
     })
 }
 
-exports.GetPopularity = function (fileType, type, page, itemsPerPage) {
+exports.GetPopularity = function (fileType, type, page, itemsPerPage, tags) {
     return new Promise(exec => {
         let collection
         if(fileType === FileUploading.UploadType.Avatar)
@@ -114,7 +155,14 @@ exports.GetPopularity = function (fileType, type, page, itemsPerPage) {
                 exec(undefined)
                 return
         }
-        SearchDatabase.sortfind(collection, {}, sortByUsages).then(f => {
+        let query = {}
+        if(tags !== undefined)
+            query = {
+                Tags: {
+                    "$in": tags
+                }
+            }
+        SearchDatabase.sortfind(collection, query, sortByUsages).then(f => {
             if(f){
                 let arr = f
                 let newArr = []
@@ -181,16 +229,35 @@ exports.PopularityType = {
     Yearly: 4
 }
 
-function createNewPopularityObject (id) {
-    // Assume id is either a world or avatar id
-    return {
-        Id: id,
-        Hourly: getPopularityObjectInfo(),
-        Daily: getPopularityObjectInfo(),
-        Weekly: getPopularityObjectInfo(),
-        Monthly: getPopularityObjectInfo(),
-        Yearly: getPopularityObjectInfo()
-    }
+function createNewPopularityObject (id, split) {
+    return new Promise((exec, err) => {
+        let promise
+        switch (split) {
+            case "avatar":
+                promise = Avatars.getAvatarMetaById(id)
+                break
+            case "world":
+                promise = Worlds.getWorldMetaById(id)
+                break
+            default:
+                err(new Error("Not avatar or world id!"))
+        }
+        promise.then((meta) => {
+            if(meta !== undefined){
+                exec({
+                    Id: id,
+                    Tags: meta.Tags,
+                    Hourly: getPopularityObjectInfo(),
+                    Daily: getPopularityObjectInfo(),
+                    Weekly: getPopularityObjectInfo(),
+                    Monthly: getPopularityObjectInfo(),
+                    Yearly: getPopularityObjectInfo()
+                })
+            }
+            else
+                err(new Error("Undefined meta!"))
+        }).catch(e => err(e))
+    })
 }
 
 function getPopularityObjectInfo(){

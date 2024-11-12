@@ -1413,7 +1413,22 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
             res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
     })
 
-    app.post(getAPIEndpoint() + "instances", function (req, res) {
+    app.get(getAPIEndpoint() + "instances/live/:itemsPerPage/:page", function (req, res) {
+        let page = req.params.page
+        if(page === undefined || page === null)
+            page = 0
+        page = Number(page)
+        let itemsPerPage = req.params.itemsPerPage
+        if(itemsPerPage === undefined || itemsPerPage === null)
+            itemsPerPage = 50
+        itemsPerPage = Number(itemsPerPage)
+        let instances = SocketServer.GetPopularInstances(page, itemsPerPage)
+        res.end(APIMessage.craftAPIMessage(true, "Got instances!", {
+            SafeInstances: instances
+        }))
+    })
+
+    app.post(getAPIEndpoint() + "instances/friends", function (req, res) {
         let userid = req.body.userid
         let tokenContent = req.body.tokenContent
         if(isUserBodyValid(userid, "string") && isUserBodyValid(tokenContent, "string")){
@@ -1421,15 +1436,9 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
                 if(isTokenValid){
                     Users.getUserDataFromUserId(userid).then(user => {
                         if(user !== undefined){
-                            SocketServer.GetSafeInstances(user).then(instances => {
-                                if(instances !== undefined){
-                                    res.end(APIMessage.craftAPIMessage(true, "Got instances!", {
-                                        SafeInstances: instances
-                                    }))
-                                }
-                                else
-                                    res.end(APIMessage.craftAPIMessage(false, "Failed to get Instances!"))
-                            }).catch(() => res.end(APIMessage.craftAPIMessage(false, "Failed to get Instances!")))
+                            res.end(APIMessage.craftAPIMessage(true, "Got instances!", {
+                                SafeInstances: SocketServer.GetFriendInstances(user)
+                            }))
                         }
                         else
                             res.end(APIMessage.craftAPIMessage(false, "Failed to get User for Instances!"))
@@ -1462,6 +1471,23 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
         }))
     })
 
+    function getPopularity(uploadType, popularityType, page, itemsPerPage, tags){
+        return new Promise(exec => {
+            Popularity.GetPopularity(uploadType, popularityType, page, itemsPerPage, tags).then(r => {
+                if(r !== undefined){
+                    exec(APIMessage.craftAPIMessage(true, "Got Popularity!", {
+                        Popularity: r
+                    }))
+                }
+                else{
+                    exec(APIMessage.craftAPIMessage(false, "Failed to get popularity!"))
+                }
+            }).catch(() => {
+                exec(APIMessage.craftAPIMessage(false, "Failed to get popularity!"))
+            })
+        })
+    }
+
     app.get(getAPIEndpoint() + "popularity/world/:popularityType/:itemsPerPage/:page", function (req, res) {
         try{
             let popularityType = req.params.popularityType
@@ -1478,18 +1504,35 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
             if(itemsPerPage === undefined || itemsPerPage === null)
                 itemsPerPage = 50
             itemsPerPage = Number(itemsPerPage)
-            Popularity.GetPopularity(FileUploading.UploadType.World, popularityType, page, itemsPerPage).then(r => {
-                if(r !== undefined){
-                    res.end(APIMessage.craftAPIMessage(true, "Got Popularity!", {
-                        Popularity: r
-                    }))
-                }
-                else{
-                    res.end(APIMessage.craftAPIMessage(false, "Failed to get popularity!"))
-                }
-            }).catch(e => {
-                res.end(APIMessage.craftAPIMessage(false, "Failed to get popularity!"))
-            })
+            getPopularity(FileUploading.UploadType.World, popularityType, page, itemsPerPage).then(msg => res.end(msg)).catch(() => res.end(APIMessage.craftAPIMessage(false, "Failed to get popularity!")))
+        } catch(_){
+            res.end(APIMessage.craftAPIMessage(false, "Failed to get popularity!"))
+        }
+    })
+
+    app.get(getAPIEndpoint() + "popularity/world/:popularityType/:tags/:itemsPerPage/:page", function (req, res) {
+        try{
+            let popularityType = req.params.popularityType
+            if(!isUserBodyValid(popularityType)){
+                res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+                return
+            }
+            popularityType = Popularity.VerifyPopularityType(Number(popularityType))
+            let tags = req.params.tags
+            if(!isUserBodyValid(tags, "string")){
+                res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+                return
+            }
+            tags = tags.split(',')
+            let page = req.params.page
+            if(page === undefined || page === null)
+                page = 0
+            page = Number(page)
+            let itemsPerPage = req.params.itemsPerPage
+            if(itemsPerPage === undefined || itemsPerPage === null)
+                itemsPerPage = 50
+            itemsPerPage = Number(itemsPerPage)
+            getPopularity(FileUploading.UploadType.World, popularityType, page, itemsPerPage, tags).then(msg => res.end(msg)).catch(() => res.end(APIMessage.craftAPIMessage(false, "Failed to get popularity!")))
         } catch(_){
             res.end(APIMessage.craftAPIMessage(false, "Failed to get popularity!"))
         }
@@ -1511,18 +1554,35 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
             if(itemsPerPage === undefined || itemsPerPage === null)
                 itemsPerPage = 50
             itemsPerPage = Number(itemsPerPage)
-            Popularity.GetPopularity(FileUploading.UploadType.Avatar, popularityType, page, itemsPerPage).then(r => {
-                if(r !== undefined){
-                    res.end(APIMessage.craftAPIMessage(true, "Got Popularity!", {
-                        Popularity: r
-                    }))
-                }
-                else{
-                    res.end(APIMessage.craftAPIMessage(false, "Failed to get popularity!"))
-                }
-            }).catch(() => {
-                res.end(APIMessage.craftAPIMessage(false, "Failed to get popularity!"))
-            })
+            getPopularity(FileUploading.UploadType.Avatar, popularityType, page, itemsPerPage).then(msg => res.end(msg)).catch(() => res.end(APIMessage.craftAPIMessage(false, "Failed to get popularity!")))
+        } catch(_){
+            res.end(APIMessage.craftAPIMessage(false, "Failed to get popularity!"))
+        }
+    })
+
+    app.get(getAPIEndpoint() + "popularity/avatar/:popularityType/:tags/:itemsPerPage/:page", function (req, res) {
+        try{
+            let popularityType = req.params.popularityType
+            if(!isUserBodyValid(popularityType)){
+                res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+                return
+            }
+            popularityType = Popularity.VerifyPopularityType(Number(popularityType))
+            let tags = req.params.tags
+            if(!isUserBodyValid(tags, "string")){
+                res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+                return
+            }
+            tags = tags.split(',')
+            let page = req.params.page
+            if(page === undefined || page === null)
+                page = 0
+            page = Number(page)
+            let itemsPerPage = req.params.itemsPerPage
+            if(itemsPerPage === undefined || itemsPerPage === null)
+                itemsPerPage = 50
+            itemsPerPage = Number(itemsPerPage)
+            getPopularity(FileUploading.UploadType.Avatar, popularityType, page, itemsPerPage, tags).then(msg => res.end(msg)).catch(() => res.end(APIMessage.craftAPIMessage(false, "Failed to get popularity!")))
         } catch(_){
             res.end(APIMessage.craftAPIMessage(false, "Failed to get popularity!"))
         }

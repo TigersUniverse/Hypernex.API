@@ -750,7 +750,7 @@ function canUserInvite(instance, userIdBeingInvited, userIdInviting){
 }
 
 function isUserWelcomeInInstance(instance, userId){
-    return new Promise((exec, reject) => {
+    return new Promise(async (exec, reject) => {
         if(instance.InstanceCreatorId === userId || ArrayTools.find(instance.Moderators, userId)){
             exec(true)
             return
@@ -783,25 +783,17 @@ function isUserWelcomeInInstance(instance, userId){
                 }).catch(err => reject(err))
                 break
             case exports.InstancePublicity.Acquaintances:
-                let connectedUsersLength = instance.ConnectedUsers.length
-                let loopTimes = 0
                 let found = false
-                for (let i = 0; i < connectedUsersLength; i++){
-                    let connectedUserId = instance.ConnectedUsers[i]
-                    Users.getUserDataFromUserId(connectedUserId).then(connectedUser => {
+                let promises = instance.ConnectedUsers.map(connectedUserId => {
+                    return Users.getUserDataFromUserId(connectedUserId).then(connectedUser => {
                         if(connectedUser !== undefined){
                             if(ArrayTools.find(connectedUser.Friends, userId) !== undefined)
                                 found = true
                         }
-                        loopTimes++
-                    }).catch(() => loopTimes++)
-                }
-                let aInterval = setInterval(() => {
-                    if(loopTimes < connectedUsersLength)
-                        return
-                    exec(found)
-                    clearInterval(aInterval)
-                }, 10)
+                    }).catch(() => {})
+                })
+                await Promise.all(promises)
+                exec(found)
                 break
             case exports.InstancePublicity.Anyone:
                 exec(true)
@@ -852,57 +844,43 @@ exports.IsUserInInstance = function (userId){
     return v
 }
 
-exports.GetSafeInstances = function (user) {
-    return new Promise(exec => {
-        let instanceLoops = 0
-        let is = []
-        let l = Instances.length
-        let instanceClones = ArrayTools.clone(Instances)
-        for(let i = 0; i < l; i++){
-            let instance = instanceClones[i]
-            let safeinstance = {
-                GameServerId: instance.GameServerId,
-                InstanceId: instance.InstanceId,
-                InstanceCreatorId: instance.InstanceCreatorId,
-                InstancePublicity: instance.InstancePublicity,
-                InstanceProtocol: instance.InstanceProtocol,
-                ConnectedUsers: instance.ConnectedUsers,
-                WorldId: instance.WorldId
-            }
-            isUserWelcomeInInstance(instance, user.Id).then(b => {
-                if(b)
-                    is.push(safeinstance)
-                instanceLoops++
-            }).catch(() => instanceLoops++)
-        }
-        // TODO: This could *probably* be better
-        let interval = setInterval(() => {
-            if(instanceLoops >= l){
-                exec(is)
-                clearInterval(interval)
-            }
-        }, 10)
-    })
+exports.GetPopularInstances = function (page, itemsPerPage) {
+    const validPage = Math.max(page, 0);
+    const validItemsPerPage = Math.min(itemsPerPage, 1);
+    let sortedInstances = Instances.filter(instance => instance.InstancePublicity === exports.InstancePublicity.Anyone).sort((a, b) => b.ConnectedUsers.length - a.ConnectedUsers.length)
+    return sortedInstances.slice(Math.max(validPage * validItemsPerPage, 0), (validPage + 1) * validItemsPerPage).map(instance => ({
+        GameServerId: instance.GameServerId,
+        InstanceId: instance.InstanceId,
+        InstanceCreatorId: instance.InstanceCreatorId,
+        InstancePublicity: instance.InstancePublicity,
+        InstanceProtocol: instance.InstanceProtocol,
+        ConnectedUsers: instance.ConnectedUsers,
+        WorldId: instance.WorldId
+    }))
+}
+
+exports.GetFriendInstances = function (user) {
+    return Instances.filter(instance => instance.InstancePublicity !== exports.InstancePublicity.Anyone && instance.ConnectedUsers.some(userId => ArrayTools.find(user.Friends, userId) !== undefined)).map(instance => ({
+        GameServerId: instance.GameServerId,
+        InstanceId: instance.InstanceId,
+        InstanceCreatorId: instance.InstanceCreatorId,
+        InstancePublicity: instance.InstancePublicity,
+        InstanceProtocol: instance.InstanceProtocol,
+        ConnectedUsers: instance.ConnectedUsers,
+        WorldId: instance.WorldId
+    }))
 }
 
 exports.GetPublicInstancesOfWorld = function (worldId) {
-    let instances = []
-    for (let i = 0; i < Instances.length; i++){
-        let instance = Instances[i]
-        if(instance.InstancePublicity === exports.InstancePublicity.Anyone && instance.WorldId === worldId){
-            let safeinstance = {
-                GameServerId: instance.GameServerId,
-                InstanceId: instance.InstanceId,
-                InstanceCreatorId: instance.InstanceCreatorId,
-                InstancePublicity: instance.InstancePublicity,
-                InstanceProtocol: instance.InstanceProtocol,
-                ConnectedUsers: instance.ConnectedUsers,
-                WorldId: instance.WorldId
-            }
-            instances.push(safeinstance)
-        }
-    }
-    return instances
+    return Instances.filter(instance => instance.InstancePublicity === exports.InstancePublicity.Anyone && instance.WorldId === worldId).map(instance => ({
+        GameServerId: instance.GameServerId,
+        InstanceId: instance.InstanceId,
+        InstanceCreatorId: instance.InstanceCreatorId,
+        InstancePublicity: instance.InstancePublicity,
+        InstanceProtocol: instance.InstanceProtocol,
+        ConnectedUsers: instance.ConnectedUsers,
+        WorldId: instance.WorldId
+    }))
 }
 
 exports.GetAllGameServers = function () {
