@@ -25,6 +25,8 @@ let Avatars
 let Worlds
 let Popularity
 
+let Discourse
+
 const API_VERSION = "v1"
 
 function getAPIEndpoint(){
@@ -41,7 +43,7 @@ function isUserBodyValid(property, targetType){
     return v
 }
 
-exports.initapp = function (usersModule, socketServerModule, serverConfig, fileUploadModule, avatarsModule, worldsModule, popularityModule){
+exports.initapp = function (usersModule, socketServerModule, serverConfig, fileUploadModule, avatarsModule, worldsModule, popularityModule, discourseModule){
     Users = usersModule
     SocketServer = socketServerModule
     ServerConfig = serverConfig
@@ -49,7 +51,7 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
     Avatars = avatarsModule
     Worlds = worldsModule
     Popularity = popularityModule
-
+    Discourse = discourseModule
 
     upload = multer({ dest: "uploads/", limits: { fileSize: ServerConfig.LoadedConfig.MaxFileSize * 1000000 } })
     app.use(express.static(path.resolve(serverConfig.LoadedConfig.WebRoot), {
@@ -320,6 +322,37 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
             }
             else
                 res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+        }
+        else
+            res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
+    })
+
+    app.post(getAPIEndpoint() + "discourse", function (req, res) {
+        let userid = req.body.userid
+        let tokenContent = req.body.tokenContent
+        let payload = req.body.payload
+        let sig = req.body.sig
+        if(isUserBodyValid(userid, "string") && isUserBodyValid(tokenContent, "string") && isUserBodyValid(payload, "string"), isUserBodyValid(sig, "string")){
+            Users.isUserIdTokenValid(userid, tokenContent).then(v => {
+                Users.getUserDataFromUserId(userid).then(user => {
+                    if(user !== undefined){
+                        let params = Discourse.Validate(payload, sig, user)
+                        if(params !== undefined){
+                            res.end(APIMessage.craftAPIMessage(true, "Logged In with Discourse", {
+                                urlAppend: v
+                            }))
+                        }
+                        else{
+                            res.end(APIMessage.craftAPIMessage(false, "Failed to validate Discourse!"))
+                        }
+                    }
+                    else
+                        res.end(APIMessage.craftAPIMessage(false, "Failed to get User for Discourse!"))
+                }).catch(() => res.end(APIMessage.craftAPIMessage(false, "Failed to get user data!")))
+            }).catch(err => {
+                Logger.Error("Failed to API validate token for reason " + err)
+                res.end(APIMessage.craftAPIMessage(false, "Failed to validate token!"))
+            })
         }
         else
             res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))

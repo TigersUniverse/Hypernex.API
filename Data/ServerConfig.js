@@ -62,6 +62,7 @@ exports.LoadedConfig = {
         Password: "",
         OverrideDomain: ""
     },
+    DiscourseSecret: "",
     GameServerTokens: [],
     AllowAnyGameServer: false,
     RequireTokenToDownloadBuilds: false,

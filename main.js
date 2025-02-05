@@ -15,6 +15,7 @@ const Avatars = require("./Game/Avatars.js")
 const Worlds = require("./Game/Worlds.js")
 const OTP = require("./Security/OTP.js")
 const URLTools = require("./Tools/URLTools.js")
+const Discourse = require("./Interfacing/discourse.js")
 
 // Config
 let ServerConfig = require("./Data/ServerConfig.js").init()
@@ -54,6 +55,9 @@ if(ServerConfig.LoadedConfig.DatabaseInfo.UseDatabaseTLS)
         ca: fs.readFileSync(ServerConfig.LoadedConfig.DatabaseInfo.DatabaseTLS.TLSCALocation)
     }
 
+// Integrations
+let discourse = Discourse.Init(ServerConfig.LoadedConfig.DiscourseSecret)
+
 Database.connect(ServerConfig.LoadedConfig.DatabaseInfo.DatabaseNumber,
     ServerConfig.LoadedConfig.DatabaseInfo.Host, ServerConfig.LoadedConfig.DatabaseInfo.Port,
     databaseUsername, databasePassword, databaseTLS).then(d => {
@@ -85,7 +89,7 @@ Database.connect(ServerConfig.LoadedConfig.DatabaseInfo.DatabaseNumber,
                 else
                     ss = SocketServer.Init(ServerConfig, u, w)
                 // API comes last
-                APIServer.initapp(u, ss, ServerConfig, fu, a, w, p)
+                APIServer.initapp(u, ss, ServerConfig, fu, a, w, p, discourse)
                 let httpServer = APIServer.createServer(80)
                 let httpsServer
                 if(ServerConfig.LoadedConfig.UseHTTPS) {
