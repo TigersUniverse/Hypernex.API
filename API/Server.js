@@ -339,7 +339,7 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
                         let params = Discourse.Validate(payload, sig, user)
                         if(params !== undefined){
                             res.end(APIMessage.craftAPIMessage(true, "Logged In with Discourse", {
-                                urlAppend: v
+                                urlAppend: params
                             }))
                         }
                         else{
