@@ -23,6 +23,8 @@ exports.Validate = function (payload, sig, userdata) {
             "email": userdata.Email,
             "username": userdata.Username,
             "avatar_url": userdata.Bio.PfpURL,
+            "profile_background_url": userdata.Bio.BannerURL,
+            "card_background_url": userdata.Bio.BannerURL,
             "bio": userdata.Bio.Description,
             "moderator": userdata.Rank >= 4,
             "admin": userdata.Rank >= 5
