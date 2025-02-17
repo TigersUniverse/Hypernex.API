@@ -27,7 +27,8 @@ exports.Validate = function (payload, sig, userdata) {
             "card_background_url": userdata.Bio.BannerURL,
             "bio": userdata.Bio.Description,
             "moderator": userdata.Rank >= 4,
-            "admin": userdata.Rank >= 5
+            "admin": userdata.Rank >= 5,
+            "avatar_force_update": true
         };
         // TODO: Probably make better
         if(userdata.Bio.DisplayName !== null && userdata.Bio.DisplayName !== undefined && userdata.Bio.DisplayName !== ""){
