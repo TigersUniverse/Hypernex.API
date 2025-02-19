@@ -272,6 +272,54 @@ exports.handleFileUpload = function (userid, tokenContent, fileid, clientAvatarM
     })
 }
 
+exports.updateMeta = function (userid, tokenContent, clientAvatarMeta) {
+    return new Promise((exec, reject) => {
+        Users.isUserIdTokenValid(userid, tokenContent).then(validToken => {
+            if(validToken){
+                let parsedClientAvatarMeta
+                let allow = false
+                try{
+                    parsedClientAvatarMeta = JSON.parse(clientAvatarMeta)
+                    allow = true
+                }
+                catch (e) {}
+                if(allow){
+                    isValidAvatarMeta(userid, parsedClientAvatarMeta, true).then(validClientMeta => {
+                        if(validClientMeta){
+                            let avatarMeta = parsedClientAvatarMeta
+                            if(avatarMeta.Id === undefined || avatarMeta.Id === ""){
+                                exec(undefined)
+                            }
+                            else
+                                exports.getAvatarMetaById(avatarMeta.Id).then(am => {
+                                    if(am !== undefined){
+                                        am = clone(avatarMeta, am)
+                                        if(am.Publicity !== exports.Publicity.Anyone)
+                                            Popularity.DeleteAvatarPublicity(am.Id).then().catch(() => {})
+                                        setAvatarMeta(am).then(r => {
+                                            if(r)
+                                                exec(am)
+                                            else
+                                                exec(undefined)
+                                        }).catch(err => reject(err))
+                                    }
+                                    else
+                                        exec(undefined)
+                                }).catch(err => reject(err))
+                        }
+                        else
+                            exec(undefined)
+                    }).catch(err => reject(err))
+                }
+                else
+                    exec(undefined)
+            }
+            else
+                exec(undefined)
+        }).catch(err => reject(err))
+    })
+}
+
 function setAvatarMeta(avatarMeta){
     return new Promise((exec, reject) => {
         if(avatarMeta._id !== undefined)
@@ -358,7 +406,7 @@ exports.deleteAvatar = function (avatarid) {
     })
 }
 
-function isValidAvatarMeta(ownerid, avatarMeta){
+function isValidAvatarMeta(ownerid, avatarMeta, ignoreBuilds = false){
     return new Promise((exec, reject) => {
         try{
             let allowed = true
@@ -375,8 +423,10 @@ function isValidAvatarMeta(ownerid, avatarMeta){
             }
             if(avatarMeta.ImageURL !== "" && !URLTools.isURLAllowed(avatarMeta.ImageURL))
                 allowed = false
-            if(avatarMeta.BuildPlatform < exports.BuildPlatform.Windows || avatarMeta.BuildPlatform > exports.BuildPlatform.Android)
-                allowed = false
+            if(!ignoreBuilds) {
+                if (avatarMeta.BuildPlatform < exports.BuildPlatform.Windows || avatarMeta.BuildPlatform > exports.BuildPlatform.Android)
+                    allowed = false
+            }
             if(!allowed){
                 exec(false)
                 return

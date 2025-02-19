@@ -365,6 +365,55 @@ exports.handleFileUpload = function (userid, tokenContent, fileid, clientWorldMe
     })
 }
 
+exports.updateMeta = function (userid, tokenContent, clientWorldMeta) {
+    return new Promise((exec, reject) => {
+        Users.isUserIdTokenValid(userid, tokenContent).then(validToken => {
+            if(validToken){
+                let parsedClientWorldMeta
+                let allow = false
+                try{
+                    parsedClientWorldMeta = JSON.parse(clientWorldMeta)
+                    allow = true
+                }
+                catch (e) {}
+                if(allow){
+                    isValidWorldMeta(userid, parsedClientWorldMeta, true).then(validClientMeta => {
+                        if(validClientMeta){
+                            let worldMeta = parsedClientWorldMeta
+                            let id = ID.new(ID.IDTypes.World)
+                            if(worldMeta.Id === undefined || worldMeta.Id === ""){
+                                exec(undefined)
+                            }
+                            else
+                                exports.getWorldMetaById(parsedClientWorldMeta.Id).then(wm => {
+                                    if(wm !== undefined){
+                                        wm = clone(worldMeta, wm)
+                                        if(wm.Publicity !== exports.Publicity.Anyone)
+                                            Popularity.DeleteWorldPublicity(worldMeta.Id).then().catch(() => {})
+                                        setWorldMeta(wm).then(r => {
+                                            if(r)
+                                                exec(wm)
+                                            else
+                                                exec(undefined)
+                                        }).catch(err => reject(err))
+                                    }
+                                    else
+                                        exec(undefined)
+                                }).catch(err => reject(err))
+                        }
+                        else
+                            exec(undefined)
+                    }).catch(err => reject(err))
+                }
+                else
+                    exec(undefined)
+            }
+            else
+                exec(undefined)
+        }).catch(err => reject(err))
+    })
+}
+
 function setWorldMeta(worldMeta){
     return new Promise((exec, reject) => {
         if(worldMeta._id !== undefined)
@@ -454,7 +503,7 @@ exports.deleteWorld = function (worldid) {
     })
 }
 
-function isValidWorldMeta(ownerid, worldMeta){
+function isValidWorldMeta(ownerid, worldMeta, ignoreBuilds = false){
     return new Promise(exec => {
         try{
             let allowed = true
@@ -480,13 +529,15 @@ function isValidWorldMeta(ownerid, worldMeta){
                         allowed = false
                 }
             }
-            for(let i = 0; i < worldMeta.ServerScripts.length; i++){
-                let serverScript = worldMeta.ServerScripts[i]
-                if(!URLTools.isURLAllowed(serverScript, true))
+            if(!ignoreBuilds) {
+                for (let i = 0; i < worldMeta.ServerScripts.length; i++) {
+                    let serverScript = worldMeta.ServerScripts[i]
+                    if (!URLTools.isURLAllowed(serverScript, true))
+                        allowed = false
+                }
+                if (worldMeta.BuildPlatform < exports.BuildPlatform.Windows || worldMeta.BuildPlatform > exports.BuildPlatform.Android)
                     allowed = false
             }
-            if(worldMeta.BuildPlatform < exports.BuildPlatform.Windows || worldMeta.BuildPlatform > exports.BuildPlatform.Android)
-                allowed = false
             if(!allowed){
                 exec(false)
                 return

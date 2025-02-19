@@ -4,6 +4,7 @@ const Logger = require("./../Logging/Logger.js")
 
 exports.LoadedConfig = {
     BaseURL: "",
+    CDNURLs: [],
     DatabaseInfo: {
         DatabaseNumber: 0,
         Host: "127.0.0.1",

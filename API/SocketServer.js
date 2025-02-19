@@ -918,6 +918,28 @@ exports.GetAllGameServers = function () {
     return gameServers
 }
 
+exports.IsGameServerConnected = function (gameServerId) {
+    let gameServers = exports.GetAllGameServers()
+    for(let i = 0; i < gameServers.length; i++){
+        let gameServer = gameServers[i]
+        if(gameServer.GameServerId !== gameServerId){ continue }
+        return true
+    }
+    return false
+}
+
+exports.IsValidGameServer = function (gameServerId, gameServerToken) {
+    let gameServer = undefined
+    for (let i = 0; i < Sockets.length; i++){
+        let socket = Sockets[i]
+        if(socket.Meta.gameServerId === gameServerId)
+            gameServer = socket.Meta
+    }
+    if(gameServer === undefined)
+        return false
+    return gameServer.serverTokenContent === gameServerToken && gameServer.isVerified
+}
+
 exports.InstancePublicity = {
     Anyone: 0,
     Acquaintances: 1,
