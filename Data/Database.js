@@ -51,7 +51,9 @@ exports.connect = function (database, host, port, username, password, tls) {
             exec(this)
         })
         client.on('end', () => isReady = false)
-        client.on('error', () => c(options))
+        client.on('error', () => {
+            Logger.Log("Redis client closed unexpectedly!")
+        })
         client.connect()
     })
 }

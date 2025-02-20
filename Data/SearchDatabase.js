@@ -3,14 +3,35 @@ const Logger = require("./../Logging/Logger.js");
 const { MongoClient } = require('mongodb')
 
 let client
+let isRetrying = false
+
+function connect(){
+    return new Promise((exec, reject) => {
+        client.connect().then(() => {
+            Logger.Log("Connected to SearchDatabase!")
+            exec()
+        }).catch(err => reject(err))
+    })
+}
+
+function retryConnect(){
+    return new Promise(exec => {
+        connect().then(() => exec()).catch(() => {
+            setTimeout(() => retryConnect().then(() => exec()), 1000)
+        })
+    })
+}
 
 exports.Init = function (url) {
     return new Promise((exec, reject) => {
         client = new MongoClient(url)
-        client.connect().then(() => {
-            Logger.Log("Connected to SearchDatabase!")
-            exec(this)
-        }).catch(err => reject(err))
+        client.on('error', () => {
+            Logger.Log("Reconnecting to MongoDB")
+            if(isRetrying) return
+            isRetrying = true
+            retryConnect().then(() => isRetrying = false)
+        })
+        connect().then(() => exec(this), err => reject(err))
     })
 }
 
