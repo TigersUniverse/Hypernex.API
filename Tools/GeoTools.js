@@ -45,38 +45,54 @@ function isLocal(urlHostname){
     return /(?:^|\.)localhost$|^(?:\[::1\]|127(?:\.\d+){3})?$/i.test(urlHostname);
 }
 
+async function getCDNInfo(server){
+    let url = new URL(server)
+    if(isLocal(url.hostname))
+        return server
+    let ip = await getIpFromHostname(url.hostname)
+    let geoData = await getLocationInfo(ip)
+    return {
+        Server: server,
+        URL: url,
+        IP: ip,
+        Latitude: geoData.latitude,
+        Longitude: geoData.longitude
+    }
+}
+
 exports.findClosestServer = async function (ip, servers){
     if(servers.length === 0) {
         return undefined
     }
     else if(servers.length === 1) {
-        return servers[0]
+        return servers[0].Server
     }
     let localGeoData = getLocationInfo(ip)
-    let ips = []
-    for (let server of servers){
-        let url = new URL(server)
-        if(isLocal(url.hostname))
-            return server
-        let ip = await getIpFromHostname(url.hostname)
-        let geoData = await getLocationInfo(ip)
-        ips.push({
-            Server: server,
-            URL: url,
-            IP: ip,
-            Latitude: geoData.latitude,
-            Longitude: geoData.longitude
-        })
-    }
-    let shortest = ips[0]
-    let shortestDistance = distance(localGeoData.latitude, localGeoData.longitude, ips[0].Latitude, ips[0].Longitude)
-    for (let i = 1; i < ips.length; i++){
-        let ip = ips[i]
+    let shortest = servers[0].Server
+    let shortestDistance = distance(localGeoData.latitude, localGeoData.longitude, servers[0].Latitude, servers[0].Longitude)
+    for (let i = 1; i < servers.length; i++){
+        let ip = servers[i]
         let d = distance(localGeoData.latitude, localGeoData.longitude, ip.Latitude, ip.Longitude)
         if(d > shortestDistance)
             continue
-        shortest = ip
+        shortest = ip.Server
         shortestDistance = d
     }
     return shortest
+}
+
+exports.initCDNs = function (cdns) {
+    return new Promise(async exec => {
+        let newCDNs = []
+        for(let i = 0; i < cdns.length; i++){
+            let cdnServer = cdns[i]
+            let info = await getCDNInfo(cdnServer)
+            newCDNs.push({
+                Server: info.Server,
+                Latitude: info.Latitude,
+                Longitude: info.Longitude
+            })
+        }
+        exec(newCDNs)
+    })
 }

@@ -43,7 +43,7 @@ function isUserBodyValid(property, targetType){
     return v
 }
 
-exports.initapp = function (usersModule, socketServerModule, serverConfig, fileUploadModule, avatarsModule, worldsModule, popularityModule, discourseModule){
+exports.initapp = function (usersModule, socketServerModule, serverConfig, cdns, fileUploadModule, avatarsModule, worldsModule, popularityModule, discourseModule){
     Users = usersModule
     SocketServer = socketServerModule
     ServerConfig = serverConfig
@@ -97,7 +97,7 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
 
     app.get(getAPIEndpoint() + "getCDNs", async function (req, res) {
         res.end(APIMessage.craftAPIMessage(true, "Got Information", {
-            servers: serverConfig.LoadedConfig.CDNURLs
+            servers: cdns
         }))
     })
 
@@ -1080,7 +1080,7 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, fileU
 
     async function redirectToCDN(req, res){
         const clientIP = req.headers["x-forwarded-for"] || req.connection.remoteAddress;
-        const closestServer = await GeoTools.findClosestServer(clientIP, serverConfig.LoadedConfig.CDNURLs)
+        const closestServer = await GeoTools.findClosestServer(clientIP, cdns)
         const newPath = req.originalUrl.replace("/api/v1/file", "/file")
         const newURL = `${closestServer}${newPath}`
         res.redirect(302, newURL)

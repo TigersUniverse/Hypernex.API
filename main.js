@@ -15,6 +15,7 @@ const Avatars = require("./Game/Avatars.js")
 const Worlds = require("./Game/Worlds.js")
 const OTP = require("./Security/OTP.js")
 const URLTools = require("./Tools/URLTools.js")
+const GeoTools = require("./Tools/GeoTools.js")
 const Discourse = require("./Interfacing/discourse.js")
 
 // Config
@@ -88,16 +89,18 @@ Database.connect(ServerConfig.LoadedConfig.DatabaseInfo.DatabaseNumber,
                     })
                 else
                     ss = SocketServer.Init(ServerConfig, u, w)
-                // API comes last
-                APIServer.initapp(u, ss, ServerConfig, fu, a, w, p, discourse)
-                let httpServer = APIServer.createServer(80)
-                let httpsServer
-                if(ServerConfig.LoadedConfig.UseHTTPS) {
-                    httpsServer = APIServer.createServer(443, {
-                        key: fs.readFileSync(ServerConfig.LoadedConfig.HTTPSTLS.TLSKeyLocation),
-                        cert: fs.readFileSync(ServerConfig.LoadedConfig.HTTPSTLS.TLSCertificateLocation)
-                    })
-                }
+                GeoTools.initCDNs(ServerConfig.LoadedConfig.CDNURLs).then(cdns => {
+                    // API comes last
+                    APIServer.initapp(u, ss, ServerConfig, cdns, fu, a, w, p, discourse)
+                    let httpServer = APIServer.createServer(80)
+                    let httpsServer
+                    if(ServerConfig.LoadedConfig.UseHTTPS) {
+                        httpsServer = APIServer.createServer(443, {
+                            key: fs.readFileSync(ServerConfig.LoadedConfig.HTTPSTLS.TLSKeyLocation),
+                            cert: fs.readFileSync(ServerConfig.LoadedConfig.HTTPSTLS.TLSCertificateLocation)
+                        })
+                    }
+                }).catch(err => console.log(err))
             }).catch(err => console.log(err))
         })
     })
