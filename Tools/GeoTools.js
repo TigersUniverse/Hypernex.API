@@ -48,7 +48,13 @@ function isLocal(urlHostname){
 async function getCDNInfo(server){
     let url = new URL(server)
     if(isLocal(url.hostname))
-        return server
+        return {
+            Server: server,
+            URL: url,
+            IP: url.hostname,
+            Latitude: 0,
+            Longitude: 0,
+        }
     let ip = await getIpFromHostname(url.hostname)
     let geoData = await getLocationInfo(ip)
     return {

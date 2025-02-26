@@ -758,19 +758,19 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, cdns,
                                         }))
                                     }
                                     else{
-                                        res.end(APIMessage.craftAPIMessage(false, "Failed to upload Avatar!"))
+                                        res.end(APIMessage.craftAPIMessage(false, "Failed to add Avatar!"))
                                         FileUploading.DeleteFile(userid, r.FileId).catch(() => {})
                                         Avatars.deleteAvatar(verifiedAvatarMeta.Id)
                                     }
                                 }).catch(err => {
                                     Logger.Error("Failed to upload avatar for reason " + err)
-                                    res.end(APIMessage.craftAPIMessage(false, "Failed to upload avatar!"))
+                                    res.end(APIMessage.craftAPIMessage(false, "Failed to add avatar!"))
                                     FileUploading.DeleteFile(userid, r.FileId).catch(() => {})
                                     Avatars.deleteAvatar(verifiedAvatarMeta.Id)
                                 })
                             }
                             else{
-                                res.end(APIMessage.craftAPIMessage(false, "Failed to upload Avatar!"))
+                                res.end(APIMessage.craftAPIMessage(false, "Failed to verify AvatarMeta!"))
                                 FileUploading.DeleteFile(userid, r.FileId).catch(() => {})
                             }
                         })
@@ -844,19 +844,19 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, cdns,
                                         }))
                                     }
                                     else{
-                                        res.end(APIMessage.craftAPIMessage(false, "Failed to upload World!"))
+                                        res.end(APIMessage.craftAPIMessage(false, "Failed to add World!"))
                                         FileUploading.DeleteFile(userid, r.FileId).catch(() => {})
                                         Avatars.deleteAvatar(verifiedWorldMeta.Id)
                                     }
                                 }).catch(err => {
                                     Logger.Error("Failed to upload avatar for reason " + err)
-                                    res.end(APIMessage.craftAPIMessage(false, "Failed to upload world!"))
+                                    res.end(APIMessage.craftAPIMessage(false, "Failed to add world!"))
                                     FileUploading.DeleteFile(userid, r.FileId).catch(() => {})
                                     Avatars.deleteAvatar(verifiedWorldMeta.Id)
                                 })
                             }
                             else{
-                                res.end(APIMessage.craftAPIMessage(false, "Failed to upload World!"))
+                                res.end(APIMessage.craftAPIMessage(false, "Failed to verify World!"))
                                 FileUploading.DeleteFile(userid, r.FileId).catch(() => {})
                             }
                         })

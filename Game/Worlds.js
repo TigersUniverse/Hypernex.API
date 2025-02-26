@@ -231,6 +231,26 @@ function deleteAllOldWorldFiles (worldMeta, worldUserId, isDeleting, buildPlatfo
     })
 }
 
+function deleteAllOldWorldFilesFromUpdate (worldMeta, worldUserId, buildPlatform) {
+    return new Promise((exec, reject) => {
+        let assetsToRemove = []
+        for(let i = 0; i < worldMeta.Builds.length; i++){
+            let build = worldMeta.Builds[i]
+            if(build.BuildPlatform === buildPlatform){
+                for(let j = 0; j < build.ServerScripts.length; j++){
+                    let serverScript = build.ServerScripts[j]
+                    let u = url.parse(serverScript).pathname.split("/")
+                    assetsToRemove.push({UserId: worldUserId, FileId: u[u.length - 1]})
+                }
+            }
+        }
+        if(assetsToRemove.length > 0)
+            deleteOldWorldFilesFromArray(assetsToRemove).then(r => exec(r)).catch(err => reject(err))
+        else
+            exec(true)
+    })
+}
+
 function clone(oldWorldMeta, newWorldMeta){
     newWorldMeta.Publicity = oldWorldMeta.Publicity
     newWorldMeta.Name = oldWorldMeta.Name
@@ -379,27 +399,45 @@ exports.updateMeta = function (userid, tokenContent, clientWorldMeta) {
                 if(allow){
                     isValidWorldMeta(userid, parsedClientWorldMeta, true).then(validClientMeta => {
                         if(validClientMeta){
-                            let worldMeta = parsedClientWorldMeta
-                            let id = ID.new(ID.IDTypes.World)
-                            if(worldMeta.Id === undefined || worldMeta.Id === ""){
-                                exec(undefined)
-                            }
-                            else
-                                exports.getWorldMetaById(parsedClientWorldMeta.Id).then(wm => {
-                                    if(wm !== undefined){
-                                        wm = clone(worldMeta, wm)
-                                        if(wm.Publicity !== exports.Publicity.Anyone)
-                                            Popularity.DeleteWorldPublicity(worldMeta.Id).then().catch(() => {})
-                                        setWorldMeta(wm).then(r => {
-                                            if(r)
-                                                exec(wm)
-                                            else
-                                                exec(undefined)
-                                        }).catch(err => reject(err))
+                            exports.getWorldMetaById(parsedClientWorldMeta.Id).then(wm => {
+                                if(wm !== undefined){
+                                    let worldMeta = parsedClientWorldMeta
+                                    let worldBuild = undefined
+                                    for(let i = 0; i < wm.Builds.length; i++){
+                                        let build = wm.Builds[i]
+                                        if(build.BuildPlatform === worldMeta.BuildPlatform)
+                                            worldBuild = build
                                     }
-                                    else
+                                    if(worldBuild === undefined){
                                         exec(undefined)
-                                }).catch(err => reject(err))
+                                        return
+                                    }
+                                    deleteAllOldWorldFilesFromUpdate(wm, userid, worldBuild.BuildPlatform).then(dssr => {
+                                        if(dssr){
+                                            for(let i = 0; i < wm.Builds.length; i++){
+                                                let build = wm.Builds[i]
+                                                if(build.BuildPlatform !== worldMeta.BuildPlatform) continue
+                                                wm.Builds[i].ServerScripts = worldMeta.ServerScripts
+                                            }
+                                            delete worldMeta.BuildPlatform
+                                            delete wm.ServerScripts
+                                            wm = clone(worldMeta, wm)
+                                            if(wm.Publicity !== exports.Publicity.Anyone)
+                                                Popularity.DeleteWorldPublicity(worldMeta.Id).then().catch(() => {})
+                                            setWorldMeta(wm).then(r => {
+                                                if(r)
+                                                    exec(wm)
+                                                else
+                                                    exec(undefined)
+                                            }).catch(err => reject(err))
+                                        }
+                                        else
+                                            exec(undefined)
+                                    }).catch(err => reject(err))
+                                }
+                                else
+                                    exec(undefined)
+                            }).catch(err => reject(err))
                         }
                         else
                             exec(undefined)
@@ -529,12 +567,12 @@ function isValidWorldMeta(ownerid, worldMeta, ignoreBuilds = false){
                         allowed = false
                 }
             }
+            for (let i = 0; i < worldMeta.ServerScripts.length; i++) {
+                let serverScript = worldMeta.ServerScripts[i]
+                if (!URLTools.isURLAllowed(serverScript, true))
+                    allowed = false
+            }
             if(!ignoreBuilds) {
-                for (let i = 0; i < worldMeta.ServerScripts.length; i++) {
-                    let serverScript = worldMeta.ServerScripts[i]
-                    if (!URLTools.isURLAllowed(serverScript, true))
-                        allowed = false
-                }
                 if (worldMeta.BuildPlatform < exports.BuildPlatform.Windows || worldMeta.BuildPlatform > exports.BuildPlatform.Android)
                     allowed = false
             }
