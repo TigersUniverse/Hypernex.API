@@ -8,8 +8,10 @@ async function getIpFromHostname(hostname) {
             const ip = data.Answer[0].data
             return ip
         }
+        return ""
     } catch (error) {
         Logger.Error('Error fetching IP: ' + error)
+        return ""
     }
 }
 
@@ -20,6 +22,10 @@ async function getLocationInfo(ip) {
         return data
     } catch (error) {
         Logger.Error('Error fetching Location: ' + error)
+        return {
+            latitude: 90,
+            longitude: 180,
+        }
     }
 }
 
