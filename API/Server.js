@@ -1567,22 +1567,11 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, cdns,
             res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
     })
 
-    app.get(getAPIEndpoint() + "randomImage", function (req, res) {
-        if(!fs.existsSync("images")) {
-            fs.mkdirSync("images")
-            res.end(APIMessage.craftAPIMessage(false, "Failed to get Image!"))
-            return
-        }
-        let files = fs.readdirSync("images")
-        if(files.length <= 0){
-            res.end(APIMessage.craftAPIMessage(false, "Failed to get Image!"))
-            return
-        }
-        let random = Math.floor(Math.random() * files.length)
-        let fileName = files[random]
-        let file = path.join("images", fileName)
-        res.attachment(fileName)
-        res.send(fs.readFileSync(file))
+    app.get(getAPIEndpoint() + "randomImage", async function (req, res) {
+        const clientIP = req.headers["x-forwarded-for"] || req.connection.remoteAddress;
+        const closestServer = await GeoTools.findClosestServer(clientIP, cdns)
+        const newURL = `${closestServer}randomImage`
+        res.redirect(302, newURL)
     })
 
     BuildDelivery.init(serverConfig, app, getAPIEndpoint(), usersModule, isUserBodyValid)
