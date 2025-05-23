@@ -231,6 +231,26 @@ function deleteAllOldWorldFiles (worldMeta, worldUserId, isDeleting, buildPlatfo
     })
 }
 
+function deleteAllOldWorldFilesFromUpdate (worldMeta, worldUserId, buildPlatform) {
+    return new Promise((exec, reject) => {
+        let assetsToRemove = []
+        for(let i = 0; i < worldMeta.Builds.length; i++){
+            let build = worldMeta.Builds[i]
+            if(build.BuildPlatform === buildPlatform){
+                for(let j = 0; j < build.ServerScripts.length; j++){
+                    let serverScript = build.ServerScripts[j]
+                    let u = url.parse(serverScript).pathname.split("/")
+                    assetsToRemove.push({UserId: worldUserId, FileId: u[u.length - 1]})
+                }
+            }
+        }
+        if(assetsToRemove.length > 0)
+            deleteOldWorldFilesFromArray(assetsToRemove).then(r => exec(r)).catch(err => reject(err))
+        else
+            exec(true)
+    })
+}
+
 function clone(oldWorldMeta, newWorldMeta){
     newWorldMeta.Publicity = oldWorldMeta.Publicity
     newWorldMeta.Name = oldWorldMeta.Name
@@ -365,6 +385,73 @@ exports.handleFileUpload = function (userid, tokenContent, fileid, clientWorldMe
     })
 }
 
+exports.updateMeta = function (userid, tokenContent, clientWorldMeta) {
+    return new Promise((exec, reject) => {
+        Users.isUserIdTokenValid(userid, tokenContent).then(validToken => {
+            if(validToken){
+                let parsedClientWorldMeta
+                let allow = false
+                try{
+                    parsedClientWorldMeta = JSON.parse(clientWorldMeta)
+                    allow = true
+                }
+                catch (e) {}
+                if(allow){
+                    isValidWorldMeta(userid, parsedClientWorldMeta, true).then(validClientMeta => {
+                        if(validClientMeta){
+                            exports.getWorldMetaById(parsedClientWorldMeta.Id).then(wm => {
+                                if(wm !== undefined){
+                                    let worldMeta = parsedClientWorldMeta
+                                    let worldBuild = undefined
+                                    for(let i = 0; i < wm.Builds.length; i++){
+                                        let build = wm.Builds[i]
+                                        if(build.BuildPlatform === worldMeta.BuildPlatform)
+                                            worldBuild = build
+                                    }
+                                    if(worldBuild === undefined){
+                                        exec(undefined)
+                                        return
+                                    }
+                                    deleteAllOldWorldFilesFromUpdate(wm, userid, worldBuild.BuildPlatform).then(dssr => {
+                                        if(dssr){
+                                            for(let i = 0; i < wm.Builds.length; i++){
+                                                let build = wm.Builds[i]
+                                                if(build.BuildPlatform !== worldMeta.BuildPlatform) continue
+                                                wm.Builds[i].ServerScripts = worldMeta.ServerScripts
+                                            }
+                                            delete worldMeta.BuildPlatform
+                                            delete wm.ServerScripts
+                                            wm = clone(worldMeta, wm)
+                                            if(wm.Publicity !== exports.Publicity.Anyone)
+                                                Popularity.DeleteWorldPublicity(worldMeta.Id).then().catch(() => {})
+                                            setWorldMeta(wm).then(r => {
+                                                if(r)
+                                                    exec(wm)
+                                                else
+                                                    exec(undefined)
+                                            }).catch(err => reject(err))
+                                        }
+                                        else
+                                            exec(undefined)
+                                    }).catch(err => reject(err))
+                                }
+                                else
+                                    exec(undefined)
+                            }).catch(err => reject(err))
+                        }
+                        else
+                            exec(undefined)
+                    }).catch(err => reject(err))
+                }
+                else
+                    exec(undefined)
+            }
+            else
+                exec(undefined)
+        }).catch(err => reject(err))
+    })
+}
+
 function setWorldMeta(worldMeta){
     return new Promise((exec, reject) => {
         if(worldMeta._id !== undefined)
@@ -454,7 +541,7 @@ exports.deleteWorld = function (worldid) {
     })
 }
 
-function isValidWorldMeta(ownerid, worldMeta){
+function isValidWorldMeta(ownerid, worldMeta, ignoreBuilds = false){
     return new Promise(exec => {
         try{
             let allowed = true
@@ -480,13 +567,15 @@ function isValidWorldMeta(ownerid, worldMeta){
                         allowed = false
                 }
             }
-            for(let i = 0; i < worldMeta.ServerScripts.length; i++){
+            for (let i = 0; i < worldMeta.ServerScripts.length; i++) {
                 let serverScript = worldMeta.ServerScripts[i]
-                if(!URLTools.isURLAllowed(serverScript, true))
+                if (!URLTools.isURLAllowed(serverScript, true))
                     allowed = false
             }
-            if(worldMeta.BuildPlatform < exports.BuildPlatform.Windows || worldMeta.BuildPlatform > exports.BuildPlatform.Android)
-                allowed = false
+            if(!ignoreBuilds) {
+                if (worldMeta.BuildPlatform < exports.BuildPlatform.Windows || worldMeta.BuildPlatform > exports.BuildPlatform.Android)
+                    allowed = false
+            }
             if(!allowed){
                 exec(false)
                 return
