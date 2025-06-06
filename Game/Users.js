@@ -431,7 +431,7 @@ exports.getUserDataFromEmail = function (email) {
             let found = false
             for(let i in users){
                 let user = users[i]
-                if(user.Username.toLowerCase() === email.toLowerCase()){
+                if(user.Email.toLowerCase() === email.toLowerCase()){
                     found = true
                     let userid = user.Id
                     exports.getUserDataFromUserId(userid).then(u => {
@@ -440,6 +440,7 @@ exports.getUserDataFromEmail = function (email) {
                         else
                             reject(new Error("Failed to find userid of " + userid))
                     }).catch(err => reject(err))
+                    break
                 }
             }
             if(!found)
