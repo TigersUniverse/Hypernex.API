@@ -9,7 +9,6 @@ const ArrayTools = require("./../Tools/ArrayTools.js")
 const GeoTools = require("./../Tools/GeoTools.js")
 const Logger = require("./../Logging/Logger.js")
 const APIMessage = require("./APIMessage.js")
-const BuildDelivery = require("./BuildDelivery.js")
 
 const multer = require("multer")
 const fs = require("fs");
@@ -79,12 +78,6 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, cdns,
         res.end(APIMessage.craftAPIMessage(true, "Got Information", {
             IsWSS: ServerConfig.LoadedConfig.UseHTTPS,
             Port: ServerConfig.LoadedConfig.SocketPort
-        }))
-    })
-
-    app.get(getAPIEndpoint() + "authForBuilds", function (req, res) {
-        res.end(APIMessage.craftAPIMessage(true, "Got Information", {
-            authForBuilds: serverConfig.LoadedConfig.RequireTokenToDownloadBuilds
         }))
     })
 
@@ -1573,8 +1566,6 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, cdns,
         const newURL = `${closestServer}randomImage`
         res.redirect(302, newURL)
     })
-
-    BuildDelivery.init(serverConfig, app, getAPIEndpoint(), usersModule, isUserBodyValid)
 }
 
 exports.createServer = function (port, ssl){

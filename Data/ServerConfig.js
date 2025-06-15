@@ -66,7 +66,6 @@ exports.LoadedConfig = {
     DiscourseSecret: "",
     GameServerTokens: [],
     AllowAnyGameServer: false,
-    RequireTokenToDownloadBuilds: false,
     GameEngine: "Unity",
     GameEngineVersion: "2023.2.20f1"
 }
