@@ -1221,14 +1221,15 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, cdns,
     })
 
     app.post(getAPIEndpoint() + "instances", function (req, res) {
+        let worldid = req.body.worldid
         let userid = req.body.userid
         let tokenContent = req.body.tokenContent
-        if(isUserBodyValid(userid, "string") && isUserBodyValid(tokenContent, "string")){
+        if(isUserBodyValid(worldid, "string") && isUserBodyValid(userid, "string") && isUserBodyValid(tokenContent, "string")){
             Users.isUserIdTokenValid(userid, tokenContent).then(isTokenValid => {
                 if(isTokenValid){
                     Users.getUserDataFromUserId(userid).then(user => {
                         if(user !== undefined){
-                            SocketServer.GetSafeInstances(user).then(instances => {
+                            SocketServer.GetSafeInstances(user, worldid).then(instances => {
                                 if(instances !== undefined){
                                     res.end(APIMessage.craftAPIMessage(true, "Got instances!", {
                                         SafeInstances: instances

@@ -852,14 +852,13 @@ exports.IsUserInInstance = function (userId){
     return v
 }
 
-exports.GetSafeInstances = function (user) {
-    return new Promise(exec => {
-        let instanceLoops = 0
+exports.GetSafeInstances = function (user, worldid) {
+    return new Promise(async exec => {
         let is = []
         let l = Instances.length
-        let instanceClones = ArrayTools.clone(Instances)
         for(let i = 0; i < l; i++){
-            let instance = instanceClones[i]
+            let instance = Instances[i]
+            if(instance.WorldId !== worldid) continue
             let safeinstance = {
                 GameServerId: instance.GameServerId,
                 InstanceId: instance.InstanceId,
@@ -869,19 +868,11 @@ exports.GetSafeInstances = function (user) {
                 ConnectedUsers: instance.ConnectedUsers,
                 WorldId: instance.WorldId
             }
-            isUserWelcomeInInstance(instance, user.Id).then(b => {
-                if(b)
-                    is.push(safeinstance)
-                instanceLoops++
-            }).catch(() => instanceLoops++)
+            let b = await isUserWelcomeInInstance(instance, user.Id)
+            if(b)
+                is.push(safeinstance)
         }
-        // TODO: This could *probably* be better
-        let interval = setInterval(() => {
-            if(instanceLoops >= l){
-                exec(is)
-                clearInterval(interval)
-            }
-        }, 10)
+        exec(is)
     })
 }
 
