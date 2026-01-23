@@ -1071,6 +1071,53 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, cdns,
             res.end(APIMessage.craftAPIMessage(false, "Invalid parameters!"))
     })
 
+    function addPopularity(userid, fileid){
+        if(isUserBodyValid(userid, "string") && isUserBodyValid(fileid, "string")){
+            FileUploading.getFileById(userid, fileid).then(fileData => {
+                if(fileData){
+                    switch (fileData.FileMeta.UploadType) {
+                        case FileUploading.UploadType.Avatar:{
+                            Avatars.getAvatarMetaByFileId(userid, fileid).then(avatarMeta => {
+                                if(avatarMeta !== undefined){
+                                    if(avatarMeta.Publicity === Avatars.Publicity.Anyone){
+                                        Popularity.GetOrCreatePopularity(avatarMeta.Id).then(popularityObject => {
+                                            if(popularityObject){
+                                                Popularity.AddUsage(popularityObject)
+                                                Popularity.UpdateDocument(popularityObject).then(_ => {}).catch(_ => {})
+                                            }
+                                        }).catch(_ => {})
+                                    }
+                                }
+                            }).catch(err => {
+                                Logger.Error("Failed to get AvatarMeta for reason " + err)
+                            })
+                            break
+                        }
+                        case FileUploading.UploadType.World:{
+                            Worlds.getWorldMetaByFileId(userid, fileid).then(worldMeta => {
+                                if(worldMeta !== undefined){
+                                    if(worldMeta.Publicity === Worlds.Publicity.Anyone){
+                                        Popularity.GetOrCreatePopularity(worldMeta.Id).then(popularityObject => {
+                                            if(popularityObject){
+                                                Popularity.AddUsage(popularityObject)
+                                                Popularity.UpdateDocument(popularityObject).then(_ => {}).catch(_ => {})
+                                            }
+                                        }).catch(_ => {})
+                                    }
+                                }
+                            }).catch(err => {
+                                Logger.Error("Failed to get WorldMeta for reason " + err)
+                            })
+                            break
+                        }
+                    }
+                }
+            }).catch(err => {
+                Logger.Error("Failed to get file for reason " + err)
+            })
+        }
+    }
+
     async function redirectToCDN(req, res){
         const clientIP = req.headers["x-forwarded-for"] || req.connection.remoteAddress;
         const closestServer = await GeoTools.findClosestServer(clientIP, cdns)
@@ -1079,7 +1126,10 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, cdns,
         res.redirect(302, newURL)
     }
 
-    app.get(getAPIEndpoint() + "file/:userid/:fileid", redirectToCDN)
+    app.get(getAPIEndpoint() + "file/:userid/:fileid", function (req, res) {
+        addPopularity(req.params.userid, req.params.fileid)
+        redirectToCDN(req, res)
+    })
     app.get(getAPIEndpoint() + "file/:userid/:fileid/:filetoken", redirectToCDN)
     app.get(getAPIEndpoint() + "file/:userid/:fileid/:gameServerId/:gameServerToken", redirectToCDN)
 
