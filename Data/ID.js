@@ -1,4 +1,7 @@
 const uuid = require('uuid')
+const {
+    randomInt,
+} = require('node:crypto');
 
 exports.new = function (idtype){
     let idprefix = "_"
@@ -31,13 +34,17 @@ exports.new = function (idtype){
     return idprefix + id
 }
 
+function getSecureNumber(max){
+    return randomInt(max)
+}
+
 exports.newTokenPassword = function (length){
     if(length === undefined)
         length = 16
     let charset = "@#$&*0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
     let password = "";
-    for (let i = 0, n = charset.length; i < length; ++i) {
-        password += charset.charAt(Math.floor(Math.random() * n));
+    for (let i = 0; i < length; ++i) {
+        password += charset.charAt(getSecureNumber(charset.length - 1));
     }
     return password;
 }
@@ -47,8 +54,8 @@ exports.newSafeURLTokenPassword = function (length){
         length = 16
     let charset = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
     let password = "";
-    for (let i = 0, n = charset.length; i < length; ++i) {
-        password += charset.charAt(Math.floor(Math.random() * n));
+    for (let i = 0; i < length; ++i) {
+        password += charset.charAt(getSecureNumber(charset.length - 1));
     }
     return password;
 }
