@@ -1138,6 +1138,8 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, cdns,
         if(isUserBodyValid(avatarid, "string")){
             Avatars.getAvatarMetaById(avatarid).then(meta => {
                 if(meta !== undefined){
+                    meta.Tokens = undefined
+                    delete meta.Tokens
                     res.end(APIMessage.craftAPIMessage(true, "Got avatar meta", {
                         Meta: meta
                     }))
@@ -1156,6 +1158,8 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, cdns,
         if(isUserBodyValid(worldid, "string")){
             Worlds.getWorldMetaById(worldid).then(meta => {
                 if(meta !== undefined){
+                    meta.Tokens = undefined
+                    delete meta.Tokens
                     res.end(APIMessage.craftAPIMessage(true, "Got world meta", {
                         Meta: meta
                     }))
