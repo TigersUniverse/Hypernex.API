@@ -61,35 +61,14 @@ exports.initapp = function (usersModule, socketServerModule, serverConfig, cdns,
     app.use(cors())
 
     // Server Information
-
-    app.get(getAPIEndpoint() + "isInviteCodeRequired", function (req, res) {
-        res.end(APIMessage.craftAPIMessage(true, "Got Information", {
-            inviteCodeRequired: serverConfig.LoadedConfig.SignupRules.RequireInviteCode
-        }))
-    })
-
-    app.get(getAPIEndpoint() + "allowAnyGameServer", function (req, res) {
-        res.end(APIMessage.craftAPIMessage(true, "Got Information", {
-            allowAnyGameServer: serverConfig.LoadedConfig.AllowAnyGameServer
-        }))
-    })
-
-    app.get(getAPIEndpoint() + "getSocketInfo", function (req, res){
-        res.end(APIMessage.craftAPIMessage(true, "Got Information", {
+    app.get(getAPIEndpoint() + "getInformation", function (req, res) {
+        res.end(APIMessage.craftAPIMessage(true, "Got Informaion", {
+            inviteCodeRequired: serverConfig.LoadedConfig.SignupRules.RequireInviteCode,
+            allowAnyGameServer: serverConfig.LoadedConfig.AllowAnyGameServer,
             IsWSS: ServerConfig.LoadedConfig.UseHTTPS,
-            Port: ServerConfig.LoadedConfig.SocketPort
-        }))
-    })
-
-    app.get(getAPIEndpoint() + "gameEngine", function (req, res) {
-        res.end(APIMessage.craftAPIMessage(true, "Got Information", {
+            Port: ServerConfig.LoadedConfig.SocketPort,
             GameEngine: serverConfig.LoadedConfig.GameEngine,
-            GameEngineVersion: serverConfig.LoadedConfig.GameEngineVersion
-        }))
-    })
-
-    app.get(getAPIEndpoint() + "getCDNs", async function (req, res) {
-        res.end(APIMessage.craftAPIMessage(true, "Got Information", {
+            GameEngineVersion: serverConfig.LoadedConfig.GameEngineVersion,
             servers: cdns
         }))
     })
